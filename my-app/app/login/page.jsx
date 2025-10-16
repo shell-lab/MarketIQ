@@ -2,6 +2,7 @@ import FigmaLogo from './FigmaLogo';
 import GoogleSignInButton from './GoogleSignInButton';
 import OrDivider from './OrDivider';
 import LoginForm from './LoginForm';
+import Link from 'next/link';
 
 export default function LoginPage() {
   return (
@@ -32,7 +33,7 @@ export default function LoginPage() {
               Reset password
             </a>
             <p className="text-sm text-gray-600">
-              No account? <a href="#" className="text-blue-600 hover:underline">Create one</a>
+              No account? <Link href="/register" className="text-blue-600 hover:underline">Create one</Link>
             </p>
           </div>
         </div>
