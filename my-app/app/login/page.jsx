@@ -4,6 +4,7 @@ import OrDivider from './OrDivider';
 import LoginForm from './LoginForm';
 import Link from 'next/link';
 
+
 export default function LoginPage() {
   return (
     <div className="relative min-h-screen bg-white font-sans">
@@ -29,9 +30,9 @@ export default function LoginPage() {
             <a href="#" className="block text-sm text-blue-600 hover:underline">
               Use single sign-on
             </a>
-            <a href="#" className="block text-sm text-blue-600 hover:underline">
+            <Link href="/forgot-password" className="block text-sm text-blue-600 hover:underline">
               Reset password
-            </a>
+            </Link>
             <p className="text-sm text-gray-600">
               No account? <Link href="/register" className="text-blue-600 hover:underline">Create one</Link>
             </p>

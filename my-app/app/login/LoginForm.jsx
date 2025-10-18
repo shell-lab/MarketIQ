@@ -37,7 +37,7 @@ export default function LoginForm() {
       <div>
         <label
           htmlFor="email"
-          className="block text-xs font-semibold text-gray-500 uppercase mb-1"
+          className="block text-xs font-semibold text-black uppercase mb-1"
         >
           Email
         </label>
@@ -48,14 +48,14 @@ export default function LoginForm() {
           autoComplete="email"
           required
           onChange={(e) => setEmail(e.target.value)}
-          className="w-full p-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black placeholder-gray-400"
+          className="w-full p-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
         />
       </div>
 
       <div>
         <label
           htmlFor="password"
-          className="block text-xs font-semibold text-gray-500 uppercase mb-1"
+          className="block text-xs font-semibold text-black uppercase mb-1"
         >
           Password
         </label>
@@ -66,7 +66,7 @@ export default function LoginForm() {
           autoComplete="current-password"
           required
           onChange={(e) => setPassword(e.target.value)}
-          className="w-full p-3 bg-gray-100 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-black"
+          className="w-full p-3 bg-gray-700 text-white border border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-white placeholder-gray-400"
         />
       </div>
 
