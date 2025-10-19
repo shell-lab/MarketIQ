@@ -3,15 +3,21 @@
 
 "use client";
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 // Import icons
 import { FiSearch, FiStar } from 'react-icons/fi';
 import { GoArrowUpRight, GoArrowDownRight } from 'react-icons/go';
+import { Line } from 'react-chartjs-2';
+import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
+
+ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
 // Main Dashboard Component
 export default function DashboardPage() {
   // State to manage the active tab (Stock Profile, Analysis, News)
   const [activeTab, setActiveTab] = useState('Stock Profile');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [selectedStock, setSelectedStock] = useState(null);
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -26,16 +32,16 @@ export default function DashboardPage() {
           <Header />
 
           {/* --- Search Bar --- */}
-          <SearchBar />
+          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} setSelectedStock={setSelectedStock} />
 
           {/* --- Market Overview --- */}
           <MarketOverview />
 
           {/* --- Stock Details Section --- */}
-          <StockDetails activeTab={activeTab} setActiveTab={setActiveTab} />
+          <StockDetails activeTab={activeTab} setActiveTab={setActiveTab} selectedStock={selectedStock} />
           
           {/* --- Price Chart --- */}
-          <PriceChart />
+          <PriceChart selectedStock={selectedStock} />
 
           {/* --- Key Statistics --- */}
           <KeyStatistics />
@@ -50,10 +56,10 @@ export default function DashboardPage() {
           <div className="sticky top-8 space-y-8">
             
             {/* --- My Watchlist --- */}
-            <Watchlist />
+            <Watchlist searchQuery={searchQuery} />
 
             {/* --- Trending Stocks --- */}
-            <TrendingStocks />
+            <TrendingStocks searchQuery={searchQuery} />
 
           </div>
         </div>
@@ -75,7 +81,39 @@ function Header() {
 }
 
 // --- Search Bar Component ---
-function SearchBar() {
+function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
+  const [searchResults, setSearchResults] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const fetchStocks = async () => {
+      if (searchQuery.length > 1) {
+        setLoading(true);
+        try {
+          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=L71XF51ICTA84CEG`);
+          const data = await response.json();
+          setSearchResults(data.bestMatches || []);
+        } catch (error) {
+          console.error("Error fetching stock data:", error);
+          setSearchResults([]);
+        }
+        setLoading(false);
+      }
+    };
+
+    const debounceFetch = setTimeout(() => {
+      fetchStocks();
+    }, 300);
+
+    return () => clearTimeout(debounceFetch);
+  }, [searchQuery]);
+
+  const handleSelectStock = (stock) => {
+    setSearchQuery('');
+    setSearchResults([]);
+    setSelectedStock(stock);
+  };
+
   return (
     <div className="relative">
       <FiSearch className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" />
@@ -83,7 +121,27 @@ function SearchBar() {
         type="text"
         placeholder="Search stocks by ticker or company name (e.g., AAPL, Apple)..."
         className="w-full pl-12 pr-4 py-3 border border-gray-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
       />
+      {(searchResults.length > 0 || loading) && (
+        <div className="absolute z-10 w-full mt-1 bg-white border border-gray-200 rounded-lg shadow-lg">
+          {loading ? (
+            <div className="p-4 text-center text-gray-500">Loading...</div>
+          ) : (
+            searchResults.map((stock) => (
+              <div
+                key={stock['1. symbol']}
+                className="p-4 hover:bg-gray-100 cursor-pointer"
+                onClick={() => handleSelectStock(stock)}
+              >
+                <p className="font-bold text-gray-900">{stock['1. symbol']}</p>
+                <p className="text-sm text-gray-500">{stock['2. name']}</p>
+              </div>
+            ))
+          )}
+        </div>
+      )}
     </div>
   );
 }
@@ -118,7 +176,7 @@ function MarketOverview() {
 }
 
 // --- Stock Details Component (Tabs + Profile) ---
-function StockDetails({ activeTab, setActiveTab }) {
+function StockDetails({ activeTab, setActiveTab, selectedStock }) {
   const tabs = ['Stock Profile', 'Analysis', 'News'];
 
   return (
@@ -145,20 +203,34 @@ function StockDetails({ activeTab, setActiveTab }) {
       <div className="p-6">
         {activeTab === 'Stock Profile' && (
           <div>
-            <div className="flex items-center">
-              <h3 className="text-2xl font-bold text-gray-900">TSLA</h3>
-              <span className="ml-3 text-lg text-gray-500">Tesla Inc.</span>
-            </div>
-            <p className="text-gray-600 mt-4 leading-relaxed">
-              Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles, and energy generation and storage systems in the United States, China, and internationally.
-            </p>
-            <div className="flex items-baseline mt-6">
-              <span className="text-4xl font-bold text-gray-900">$242.84</span>
-              <div className="flex items-center text-lg text-red-600 ml-4">
-                <GoArrowDownRight />
-                <span className="font-semibold ml-1">-4.56 (-1.84%)</span>
+            {selectedStock ? (
+              <div>
+                <div className="flex items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">{selectedStock['1. symbol']}</h3>
+                  <span className="ml-3 text-lg text-gray-500">{selectedStock['2. name']}</span>
+                </div>
+                <p className="text-gray-600 mt-4 leading-relaxed">
+                  {selectedStock['8. currency']}
+                </p>
               </div>
-            </div>
+            ) : (
+              <div>
+                <div className="flex items-center">
+                  <h3 className="text-2xl font-bold text-gray-900">TSLA</h3>
+                  <span className="ml-3 text-lg text-gray-500">Tesla Inc.</span>
+                </div>
+                <p className="text-gray-600 mt-4 leading-relaxed">
+                  Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles, and energy generation and storage systems in the United States, China, and internationally.
+                </p>
+                <div className="flex items-baseline mt-6">
+                  <span className="text-4xl font-bold text-gray-900">$242.84</span>
+                  <div className="flex items-center text-lg text-red-600 ml-4">
+                    <GoArrowDownRight />
+                    <span className="font-semibold ml-1">-4.56 (-1.84%)</span>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
         {activeTab === 'Analysis' && (
@@ -173,18 +245,162 @@ function StockDetails({ activeTab, setActiveTab }) {
 }
 
 // --- Price Chart Component ---
-function PriceChart() {
+function PriceChart({ selectedStock }) {
+  const [chartData, setChartData] = useState({ labels: [], datasets: [] });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    const fetchChartData = async () => {
+      setLoading(true);
+      setError(null);
+      const symbol = selectedStock ? selectedStock['1. symbol'] : 'TSLA';
+      const apiKey = 'L71XF51ICTA84CEG'; // User has added their API key here.
+
+      const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}&outputsize=compact`;
+      console.log("Fetching chart data from:", url);
+
+      try {
+        const response = await fetch(url);
+        const data = await response.json();
+        console.log("Alpha Vantage API Response:", data);
+
+        const timeSeries = data['Time Series (Daily)'];
+
+        if (timeSeries) {
+          const labels = Object.keys(timeSeries).slice(0, 30).reverse();
+          const prices = labels.map(label => parseFloat(timeSeries[label]['4. close']));
+          console.log("Processed Labels:", labels);
+          console.log("Processed Prices:", prices);
+
+          setChartData({
+            labels,
+            datasets: [
+              {
+                label: 'Price',
+                data: prices,
+                borderColor: '#3A86FF',
+                borderWidth: 2,
+                fill: true,
+                backgroundColor: (context) => {
+                  const chart = context.chart;
+                  const {ctx, chartArea} = chart;
+                  if (!chartArea) {
+                    return null;
+                  }
+                  const gradient = ctx.createLinearGradient(0, chartArea.bottom, 0, chartArea.top);
+                  gradient.addColorStop(0, 'rgba(58, 134, 255, 0)');
+                  gradient.addColorStop(1, 'rgba(58, 134, 255, 0.3)');
+                  return gradient;
+                },
+                pointBackgroundColor: '#3A86FF',
+                pointBorderColor: '#fff',
+                pointHoverBackgroundColor: '#fff',
+                pointHoverBorderColor: '#3A86FF',
+              },
+            ],
+          });
+        } else {
+          const errorMessage = data['Information'] || data['Error Message'] || 'Could not fetch time series data.';
+          console.error('API Error:', errorMessage);
+          setError(errorMessage);
+          setChartData({ labels: [], datasets: [] });
+        }
+      } catch (error) {
+        console.error("Error fetching or parsing chart data:", error);
+        setError('Failed to fetch chart data. See console for details.');
+        setChartData({ labels: [], datasets: [] });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchChartData();
+  }, [selectedStock]);
+
+  const options = {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        display: false,
+      },
+      title: {
+        display: true,
+        text: `Stock Price Performance for ${selectedStock ? selectedStock['2. name'] : 'Tesla Inc.'}`,
+        font: { size: 18, weight: 'bold' },
+        color: '#333',
+        padding: { top: 10, bottom: 30 }
+      },
+      tooltip: {
+        enabled: true,
+        mode: 'index',
+        intersect: false,
+        backgroundColor: '#fff',
+        titleColor: '#333',
+        bodyColor: '#666',
+        borderColor: '#ddd',
+        borderWidth: 1,
+        padding: 10,
+        displayColors: false,
+      }
+    },
+    scales: {
+      x: {
+        grid: {
+          display: false,
+        },
+        ticks: {
+          color: '#999',
+          maxRotation: 0,
+          minRotation: 0,
+          autoSkip: true,
+          maxTicksLimit: 7 // Show fewer labels on the x-axis
+        }
+      },
+      y: {
+        grid: {
+          color: '#f0f0f0',
+          drawBorder: false,
+        },
+        ticks: {
+          color: '#999',
+          beginAtZero: false,
+          callback: function(value) {
+            return '$' + value.toFixed(2);
+          }
+        }
+      }
+    },
+    elements: {
+      line: {
+        tension: 0.4,
+      },
+      point: {
+        radius: 0,
+        hitRadius: 10,
+        hoverRadius: 5,
+      }
+    }
+  };
+
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-      <h2 className="text-xl font-semibold text-gray-900 mb-4">Price Chart</h2>
-      <div className="h-80 flex items-center justify-center bg-gray-50 rounded-md">
-        <p className="text-gray-500">
-          A line chart (e.g., using Chart.js or Recharts) would be embedded here.
-        </p>
-      </div>
+    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6 h-[400px]">
+      {loading ? (
+        <div className="h-full flex items-center justify-center text-gray-500">Loading Chart...</div>
+      ) : error ? (
+        <div className="h-full flex items-center justify-center text-red-500 text-center p-4">{error}</div>
+      ) : (
+        chartData.labels && chartData.labels.length > 0 ? (
+          <Line options={options} data={chartData} />
+        ) : (
+          <div className="h-full flex items-center justify-center text-gray-500">No data available for this stock.</div>
+        )
+      )}
     </div>
   );
 }
+
 
 // --- Key Statistics Component ---
 function KeyStatistics() {
@@ -213,13 +429,18 @@ function KeyStatistics() {
 }
 
 // --- Watchlist Component ---
-function Watchlist() {
+function Watchlist({ searchQuery }) {
   // Data would come from an API or user's database
   const stocks = [
     { ticker: 'AAPL', name: 'Apple Inc.', price: '$178.45', change: '+1.33%', up: true },
     { ticker: 'GOOGL', name: 'Alphabet Inc.', price: '$142.87', change: '-0.85%', up: false },
     { ticker: 'MSFT', name: 'Microsoft', price: '$412.34', change: '+1.39%', up: true },
   ];
+
+  const filteredStocks = stocks.filter((stock) =>
+    stock.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stock.ticker.toLowerCase().includes(searchQuery.toLowerCase())
+  );
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
@@ -228,28 +449,32 @@ function Watchlist() {
         <h2 className="text-xl font-semibold text-gray-900 ml-2">My Watchlist</h2>
       </div>
       <div className="space-y-4">
-        {stocks.map((stock) => (
-          <div key={stock.ticker} className="flex justify-between items-center">
-            <div>
-              <p className="font-bold text-gray-900">{stock.ticker}</p>
-              <p className="text-sm text-gray-500">{stock.name}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">{stock.price}</p>
-              <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
-                {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
-                <span className="font-medium ml-1">{stock.change}</span>
+        {filteredStocks.length > 0 ? (
+          filteredStocks.map((stock) => (
+            <div key={stock.ticker} className="flex justify-between items-center">
+              <div>
+                <p className="font-bold text-gray-900">{stock.ticker}</p>
+                <p className="text-sm text-gray-500">{stock.name}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-gray-900">{stock.price}</p>
+                <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
+                  {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
+                  <span className="font-medium ml-1">{stock.change}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="text-gray-500">No results found.</p>
+        )}
       </div>
     </div>
   );
 }
 
 // --- Trending Stocks Component ---
-function TrendingStocks() {
+function TrendingStocks({ searchQuery }) {
   // Data would come from an API
   const stocks = [
     { ticker: 'NVDA', name: 'NVIDIA Corp', price: '$875.28', change: '+1.44%', up: true },
@@ -259,25 +484,34 @@ function TrendingStocks() {
     { ticker: 'AMZN', name: 'Amazon.com', price: '$178.25', change: '+1.78%', up: true },
   ];
 
+  const filteredStocks = stocks.filter((stock) =>
+    stock.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    stock.ticker.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Trending Stocks</h2>
       <div className="space-y-4">
-        {stocks.map((stock) => (
-          <div key={stock.ticker} className="flex justify-between items-center">
-            <div>
-              <p className="font-bold text-gray-900">{stock.ticker}</p>
-              <p className="text-sm text-gray-500">{stock.name}</p>
-            </div>
-            <div className="text-right">
-              <p className="font-semibold text-gray-900">{stock.price}</p>
-              <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
-                {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
-                <span className="font-medium ml-1">{stock.change}</span>
+        {filteredStocks.length > 0 ? (
+          filteredStocks.map((stock) => (
+            <div key={stock.ticker} className="flex justify-between items-center">
+              <div>
+                <p className="font-bold text-gray-900">{stock.ticker}</p>
+                <p className="text-sm text-gray-500">{stock.name}</p>
+              </div>
+              <div className="text-right">
+                <p className="font-semibold text-gray-900">{stock.price}</p>
+                <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
+                  {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
+                  <span className="font-medium ml-1">{stock.change}</span>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          ))
+        ) : (
+          <p className="text-gray-500">No results found.</p>
+        )}
       </div>
     </div>
   );
