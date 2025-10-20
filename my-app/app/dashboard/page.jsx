@@ -56,10 +56,18 @@ export default function DashboardPage() {
           <div className="sticky top-8 space-y-8">
             
             {/* --- My Watchlist --- */}
-            <Watchlist searchQuery={searchQuery} />
+            <Watchlist 
+              searchQuery={searchQuery} 
+              selectedStock={selectedStock} 
+              setSelectedStock={setSelectedStock} 
+            />
 
             {/* --- Trending Stocks --- */}
-            <TrendingStocks searchQuery={searchQuery} />
+            <TrendingStocks 
+              searchQuery={searchQuery} 
+              selectedStock={selectedStock} 
+              setSelectedStock={setSelectedStock} 
+            />
 
           </div>
         </div>
@@ -429,7 +437,7 @@ function KeyStatistics() {
 }
 
 // --- Watchlist Component ---
-function Watchlist({ searchQuery }) {
+function Watchlist({ searchQuery, selectedStock, setSelectedStock }) {
   // Data would come from an API or user's database
   const stocks = [
     { ticker: 'AAPL', name: 'Apple Inc.', price: '$178.45', change: '+1.33%', up: true },
@@ -442,16 +450,24 @@ function Watchlist({ searchQuery }) {
     stock.ticker.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSelectStock = (stock) => {
+    setSelectedStock({ '1. symbol': stock.ticker, '2. name': stock.name });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
       <div className="flex items-center mb-4">
         <FiStar className="text-yellow-500" />
         <h2 className="text-xl font-semibold text-gray-900 ml-2">My Watchlist</h2>
       </div>
-      <div className="space-y-4">
+      <div className="space-y-2">
         {filteredStocks.length > 0 ? (
           filteredStocks.map((stock) => (
-            <div key={stock.ticker} className="flex justify-between items-center">
+            <div 
+              key={stock.ticker} 
+              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectStock(stock)}
+            >
               <div>
                 <p className="font-bold text-gray-900">{stock.ticker}</p>
                 <p className="text-sm text-gray-500">{stock.name}</p>
@@ -474,7 +490,7 @@ function Watchlist({ searchQuery }) {
 }
 
 // --- Trending Stocks Component ---
-function TrendingStocks({ searchQuery }) {
+function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
   // Data would come from an API
   const stocks = [
     { ticker: 'NVDA', name: 'NVIDIA Corp', price: '$875.28', change: '+1.44%', up: true },
@@ -489,13 +505,21 @@ function TrendingStocks({ searchQuery }) {
     stock.ticker.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
+  const handleSelectStock = (stock) => {
+    setSelectedStock({ '1. symbol': stock.ticker, '2. name': stock.name });
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Trending Stocks</h2>
-      <div className="space-y-4">
+      <div className="space-y-2">
         {filteredStocks.length > 0 ? (
           filteredStocks.map((stock) => (
-            <div key={stock.ticker} className="flex justify-between items-center">
+            <div 
+              key={stock.ticker} 
+              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+              onClick={() => handleSelectStock(stock)}
+            >
               <div>
                 <p className="font-bold text-gray-900">{stock.ticker}</p>
                 <p className="text-sm text-gray-500">{stock.name}</p>
