@@ -1,6 +1,3 @@
-// File: app/dashboard/page.jsx
-// This is a React component. Per your instructions, it's in a C++ block.
-
 "use client";
 
 import { useState, useEffect } from 'react';
@@ -12,12 +9,53 @@ import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
 
-// Main Dashboard Component
 export default function DashboardPage() {
-  // State to manage the active tab (Stock Profile, Analysis, News)
   const [activeTab, setActiveTab] = useState('Stock Profile');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStock, setSelectedStock] = useState(null);
+  const [stockDetails, setStockDetails] = useState(null);
+  const [loadingDetails, setLoadingDetails] = useState(false);
+
+  useEffect(() => {
+    const fetchStockDetails = async () => {
+      if (selectedStock) {
+        console.log('Fetching details for:', selectedStock);
+        setLoadingDetails(true);
+        try {
+          const symbol = selectedStock['1. symbol'];
+const apiKey = 'E4W85A2W5Q6Q8Q7Q';
+          const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
+          const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${apiKey}`;
+
+          console.log('Quote URL:', quoteUrl);
+          console.log('Overview URL:', overviewUrl);
+
+          const [quoteResponse, overviewResponse] = await Promise.all([
+            fetch(quoteUrl),
+            fetch(overviewUrl),
+          ]);
+
+          const quoteData = await quoteResponse.json();
+          const overviewData = await overviewResponse.json();
+
+          console.log('Quote API Response:', quoteData);
+          console.log('Overview API Response:', overviewData);
+
+          const combinedDetails = { ...quoteData['Global Quote'], ...overviewData };
+          console.log('Combined Details:', combinedDetails);
+
+          setStockDetails(combinedDetails);
+        } catch (error) {
+          console.error("Error fetching stock details:", error);
+          setStockDetails(null); // Clear details on error
+        }
+        setLoadingDetails(false);
+      }
+    };
+
+    fetchStockDetails();
+  }, [selectedStock]);
+
 
   return (
     <div className="min-h-screen bg-gray-50 p-8">
@@ -38,13 +76,13 @@ export default function DashboardPage() {
           <MarketOverview />
 
           {/* --- Stock Details Section --- */}
-          <StockDetails activeTab={activeTab} setActiveTab={setActiveTab} selectedStock={selectedStock} />
+          <StockDetails activeTab={activeTab} setActiveTab={setActiveTab} selectedStock={selectedStock} stockDetails={stockDetails} loading={loadingDetails} />
           
           {/* --- Price Chart --- */}
           <PriceChart selectedStock={selectedStock} />
 
           {/* --- Key Statistics --- */}
-          <KeyStatistics />
+          <KeyStatistics stockDetails={stockDetails} loading={loadingDetails} />
 
         </div>
 
@@ -98,7 +136,7 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
       if (searchQuery.length > 1) {
         setLoading(true);
         try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=L71XF51ICTA84CEG`);
+          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=E4W85A2W5Q6Q8Q7Q`);
           const data = await response.json();
           setSearchResults(data.bestMatches || []);
         } catch (error) {
@@ -156,13 +194,66 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
 
 // --- Market Overview Component ---
 function MarketOverview() {
-  // Data would come from an API
-  const marketData = [
-    { name: 'S&P 500', value: '5,815.03', change: '+23.45', changePercent: '+0.40', up: true },
-    { name: 'Dow Jones', value: '42,863.86', change: '+134.21', changePercent: '+0.31', up: true },
-    { name: 'NASDAQ', value: '18,342.94', change: '-45.89', changePercent: '-0.25', up: false },
-    { name: 'Russell 2000', value: '2,238.45', change: '+8.34', changePercent: '+0.37', up: true },
-  ];
+  const [marketData, setMarketData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchMarketData = async () => {
+      setLoading(true);
+      const symbols = ['SPY', 'DIA', 'QQQ', 'IWM'];
+      const names = {
+        SPY: 'S&P 500',
+        DIA: 'Dow Jones',
+        QQQ: 'NASDAQ',
+        IWM: 'Russell 2000',
+      };
+      const apiKey = 'E4W85A2W5Q6Q8Q7Q';
+      const requests = symbols.map(symbol =>
+        fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`)
+          .then(res => res.json())
+      );
+
+      try {
+        const results = await Promise.all(requests);
+        const data = results.map((result, index) => {
+          const quote = result['Global Quote'];
+          const change = parseFloat(quote['09. change']);
+          const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+          return {
+            name: names[symbols[index]],
+            value: parseFloat(quote['05. price']).toFixed(2),
+            change: change.toFixed(2),
+            changePercent: changePercent.toFixed(2),
+            up: change >= 0,
+          };
+        });
+        setMarketData(data);
+      } catch (error) {
+        console.error("Error fetching market data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchMarketData();
+  }, []);
+
+  if (loading) {
+    return (
+      <div>
+        <h2 className="text-xl font-semibold text-gray-900 mb-4">Market Overview</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[...Array(4)].map((_, index) => (
+            <div key={index} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 animate-pulse">
+              <div className="h-4 bg-gray-200 rounded w-3/4 mb-2"></div>
+              <div className="h-8 bg-gray-200 rounded w-1/2 mb-2"></div>
+              <div className="h-4 bg-gray-200 rounded w-1/4"></div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -184,8 +275,52 @@ function MarketOverview() {
 }
 
 // --- Stock Details Component (Tabs + Profile) ---
-function StockDetails({ activeTab, setActiveTab, selectedStock }) {
+function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, loading }) {
   const tabs = ['Stock Profile', 'Analysis', 'News'];
+
+  const renderContent = () => {
+    if (loading) {
+      return <div className="text-center p-8">Loading stock details...</div>;
+    }
+
+    if (selectedStock && stockDetails && stockDetails.Symbol) {
+      const price = parseFloat(stockDetails['05. price']);
+      const change = parseFloat(stockDetails['09. change']);
+      const changePercent = stockDetails['10. change percent'];
+      const isPositive = change >= 0;
+
+      return (
+        <div>
+          <div className="flex items-center">
+            <h3 className="text-2xl font-bold text-gray-900">{stockDetails.Symbol}</h3>
+            <span className="ml-3 text-lg text-gray-500">{stockDetails.Name}</span>
+          </div>
+          <p className="text-gray-600 mt-4 leading-relaxed">
+            {stockDetails.Description}
+          </p>
+          <div className="flex items-baseline mt-6">
+            <span className="text-4xl font-bold text-gray-900">${price.toFixed(2)}</span>
+            <div className={`flex items-center text-lg ${isPositive ? 'text-green-600' : 'text-red-600'} ml-4`}>
+              {isPositive ? <GoArrowUpRight /> : <GoArrowDownRight />}
+              <span className="font-semibold ml-1">{change.toFixed(2)} ({changePercent})</span>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    // Default view when no stock is selected or details are not available
+    return (
+      <div>
+        <div className="flex items-center">
+          <h3 className="text-2xl font-bold text-gray-900">Stock Profile</h3>
+        </div>
+        <p className="text-gray-600 mt-4 leading-relaxed">
+          Search for a stock or select one from your watchlist to see its details.
+        </p>
+      </div>
+    );
+  };
 
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
@@ -209,38 +344,7 @@ function StockDetails({ activeTab, setActiveTab, selectedStock }) {
 
       {/* --- Tab Content --- */}
       <div className="p-6">
-        {activeTab === 'Stock Profile' && (
-          <div>
-            {selectedStock ? (
-              <div>
-                <div className="flex items-center">
-                  <h3 className="text-2xl font-bold text-gray-900">{selectedStock['1. symbol']}</h3>
-                  <span className="ml-3 text-lg text-gray-500">{selectedStock['2. name']}</span>
-                </div>
-                <p className="text-gray-600 mt-4 leading-relaxed">
-                  {selectedStock['8. currency']}
-                </p>
-              </div>
-            ) : (
-              <div>
-                <div className="flex items-center">
-                  <h3 className="text-2xl font-bold text-gray-900">TSLA</h3>
-                  <span className="ml-3 text-lg text-gray-500">Tesla Inc.</span>
-                </div>
-                <p className="text-gray-600 mt-4 leading-relaxed">
-                  Tesla, Inc. designs, develops, manufactures, leases, and sells electric vehicles, and energy generation and storage systems in the United States, China, and internationally.
-                </p>
-                <div className="flex items-baseline mt-6">
-                  <span className="text-4xl font-bold text-gray-900">$242.84</span>
-                  <div className="flex items-center text-lg text-red-600 ml-4">
-                    <GoArrowDownRight />
-                    <span className="font-semibold ml-1">-4.56 (-1.84%)</span>
-                  </div>
-                </div>
-              </div>
-            )}
-          </div>
-        )}
+        {activeTab === 'Stock Profile' && renderContent()}
         {activeTab === 'Analysis' && (
           <div className="text-gray-600">Analysis content would go here...</div>
         )}
@@ -263,7 +367,7 @@ function PriceChart({ selectedStock }) {
       setLoading(true);
       setError(null);
       const symbol = selectedStock ? selectedStock['1. symbol'] : 'TSLA';
-      const apiKey = 'L71XF51ICTA84CEG'; // User has added their API key here.
+      const apiKey = 'E4W85A2W5Q6Q8Q7Q'; // User has added their API key here.
 
       const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}&outputsize=compact`;
       console.log("Fetching chart data from:", url);
@@ -411,18 +515,52 @@ function PriceChart({ selectedStock }) {
 
 
 // --- Key Statistics Component ---
-function KeyStatistics() {
-  // Data would come from an API
+function KeyStatistics({ stockDetails, loading }) {
+  const formatNumber = (numStr) => {
+    const num = parseFloat(numStr);
+    if (isNaN(num)) return '-';
+    
+    if (num >= 1_000_000_000_000) {
+      return `${(num / 1_000_000_000_000).toFixed(2)}T`;
+    }
+    if (num >= 1_000_000_000) {
+      return `${(num / 1_000_000_000).toFixed(2)}B`;
+    }
+    if (num >= 1_000_000) {
+      return `${(num / 1_000_000).toFixed(2)}M`;
+    }
+    return num.toLocaleString();
+  };
+
+  const formatCurrency = (numStr) => {
+    const num = parseFloat(numStr);
+    if (isNaN(num)) return '-';
+    return `${num.toFixed(2)}`;
+  }
+
   const stats = [
-    { label: 'Market Cap', value: '$771.28B' },
-    { label: 'Volume', value: '102.4M' },
-    { label: 'Day High', value: '$245.90' },
-    { label: 'Day Low', value: '$240.25' },
-    { label: 'Open', value: '$244.50' },
-    { label: 'Prev Close', value: '$247.40' },
-    { label: '52W High', value: '$279.27' },
-    { label: '52W Low', value: '$206.41' },
+    { label: 'Market Cap', value: stockDetails ? formatNumber(stockDetails.MarketCapitalization) : '-' },
+    { label: 'Volume', value: stockDetails ? formatNumber(stockDetails['06. volume']) : '-' },
+    { label: 'Day High', value: stockDetails ? formatCurrency(stockDetails['03. high']) : '-' },
+    { label: 'Day Low', value: stockDetails ? formatCurrency(stockDetails['04. low']) : '-' },
+    { label: 'Open', value: stockDetails ? formatCurrency(stockDetails['02. open']) : '-' },
+    { label: 'Prev Close', value: stockDetails ? formatCurrency(stockDetails['08. previous close']) : '-' },
+    { label: '52W High', value: stockDetails ? formatCurrency(stockDetails['52WeekHigh']) : '-' },
+    { label: '52W Low', value: stockDetails ? formatCurrency(stockDetails['52WeekLow']) : '-' },
   ];
+
+  if (loading) {
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {stats.map((stat) => (
+          <div key={stat.label} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 animate-pulse">
+            <h4 className="text-sm font-medium text-gray-500">{stat.label}</h4>
+            <div className="h-6 bg-gray-200 rounded mt-2"></div>
+          </div>
+        ))}
+      </div>
+    );
+  }
 
   return (
     <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
