@@ -8,11 +8,14 @@ export default function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
 
   const router = useRouter();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setLoading(true);
+    setError("");
 
     try {
       const res = await signIn("credentials", {
@@ -23,12 +26,15 @@ export default function LoginForm() {
 
       if (res.error) {
         setError("Invalid Credentials");
+        setLoading(false);
         return;
       }
 
       router.replace("/");
     } catch (error) {
       console.log(error);
+      setError("An error occurred. Please try again.");
+      setLoading(false);
     }
   };
 
@@ -78,9 +84,10 @@ export default function LoginForm() {
 
       <button
         type="submit"
-        className="w-full py-3 px-4 bg-black text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors duration-200"
+        className="w-full py-3 px-4 bg-black text-white font-semibold rounded-lg shadow-md hover:bg-gray-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-black transition-colors duration-200 disabled:bg-gray-500"
+        disabled={loading}
       >
-        Log in
+        {loading ? "Logging in..." : "Log in"}
       </button>
     </form>
   );
