@@ -236,7 +236,7 @@ function MarketOverview() {
             console.warn(`Could not fetch quote for symbol: ${symbols[index]}`);
             return null;
           }
-        }).filter(Boolean); // Filter out null values
+        }).filter(Boolean);
         setMarketData(data);
       } catch (error) {
         console.error("Error fetching market data:", error);
@@ -736,7 +736,7 @@ function Watchlist({ searchQuery, selectedStock, setSelectedStock, watchlist, lo
               };
             }
             return null;
-          }).filter(Boolean); // remove nulls
+          }).filter(Boolean);
           setWatchlistDetails(data);
         } catch (error) {
           console.error("Error fetching watchlist details:", error);
