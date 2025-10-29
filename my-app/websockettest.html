@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>WebSocket Test</title>
+</head>
+<body>
+  <h1>WebSocket Test</h1>
+  <p>Check the browser console for WebSocket connection status.</p>
+
+  <script>
+    const socket = new WebSocket("wss://ws.finnhub.io?token=sandbox_c_1aaa1aaa1aaa1aaa1aaa1aaa1aaa1aa");
+
+    socket.addEventListener('open', function (event) {
+      console.log('WebSocket connection opened.');
+      socket.send(JSON.stringify({'type':'subscribe', 'symbol': 'AAPL'}));
+    });
+
+    socket.addEventListener('message', function (event) {
+      console.log('Message from server ', event.data);
+    });
+
+    socket.addEventListener('close', function (event) {
+      console.log('WebSocket connection closed.');
+    });
+
+    socket.addEventListener('error', function (event) {
+      console.error('WebSocket error: ', event);
+    });
+  </script>
+</body>
+</html>

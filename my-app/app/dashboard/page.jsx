@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import { useState, useEffect } from 'react';
 // Import icons
@@ -15,20 +15,38 @@ export default function DashboardPage() {
   const [selectedStock, setSelectedStock] = useState(null);
   const [stockDetails, setStockDetails] = useState(null);
   const [loadingDetails, setLoadingDetails] = useState(false);
+  const [watchlist, setWatchlist] = useState([]);
+  const [loadingWatchlist, setLoadingWatchlist] = useState(true);
+
+  const fetchWatchlist = async () => {
+    setLoadingWatchlist(true);
+    try {
+      const response = await fetch('/api/watchlist');
+      if (response.ok) {
+        const data = await response.json();
+        setWatchlist(data);
+      } else {
+        console.error("Failed to fetch watchlist");
+      }
+    } catch (error) {
+      console.error("Error fetching watchlist:", error);
+    }
+    setLoadingWatchlist(false);
+  };
+
+  useEffect(() => {
+    fetchWatchlist();
+  }, []);
 
   useEffect(() => {
     const fetchStockDetails = async () => {
       if (selectedStock) {
-        console.log('Fetching details for:', selectedStock);
         setLoadingDetails(true);
         try {
           const symbol = selectedStock['1. symbol'];
-const apiKey = 'E4W85A2W5Q6Q8Q7Q';
+          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
           const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
           const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${apiKey}`;
-
-          console.log('Quote URL:', quoteUrl);
-          console.log('Overview URL:', overviewUrl);
 
           const [quoteResponse, overviewResponse] = await Promise.all([
             fetch(quoteUrl),
@@ -38,16 +56,11 @@ const apiKey = 'E4W85A2W5Q6Q8Q7Q';
           const quoteData = await quoteResponse.json();
           const overviewData = await overviewResponse.json();
 
-          console.log('Quote API Response:', quoteData);
-          console.log('Overview API Response:', overviewData);
-
           const combinedDetails = { ...quoteData['Global Quote'], ...overviewData };
-          console.log('Combined Details:', combinedDetails);
-
           setStockDetails(combinedDetails);
         } catch (error) {
           console.error("Error fetching stock details:", error);
-          setStockDetails(null); // Clear details on error
+          setStockDetails(null);
         }
         setLoadingDetails(false);
       }
@@ -61,46 +74,41 @@ const apiKey = 'E4W85A2W5Q6Q8Q7Q';
     <div className="min-h-screen bg-gray-50 p-8">
       <div className="max-w-[1600px] mx-auto grid grid-cols-3 gap-8">
         
-        {/* ============================================== */}
-        {/* ============ LEFT COLUMN (Main) ============ */}
-        {/* ============================================== */}
         <div className="col-span-3 lg:col-span-2 space-y-8">
           
-          {/* --- Header --- */}
           <Header />
 
-          {/* --- Search Bar --- */}
           <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} setSelectedStock={setSelectedStock} />
 
-          {/* --- Market Overview --- */}
           <MarketOverview />
 
-          {/* --- Stock Details Section --- */}
-          <StockDetails activeTab={activeTab} setActiveTab={setActiveTab} selectedStock={selectedStock} stockDetails={stockDetails} loading={loadingDetails} />
+          <StockDetails 
+            activeTab={activeTab} 
+            setActiveTab={setActiveTab} 
+            selectedStock={selectedStock} 
+            stockDetails={stockDetails} 
+            loading={loadingDetails}
+            watchlist={watchlist}
+            fetchWatchlist={fetchWatchlist}
+          />
           
-          {/* --- Price Chart --- */}
           <PriceChart selectedStock={selectedStock} />
 
-          {/* --- Key Statistics --- */}
           <KeyStatistics stockDetails={stockDetails} loading={loadingDetails} />
 
         </div>
 
-        {/* ============================================== */}
-        {/* ============ RIGHT COLUMN (Sidebar) ============ */}
-        {/* ============================================== */}
         <div className="col-span-3 lg:col-span-1">
-          {/* Sticky container to keep sidebar content in view on scroll */}
           <div className="sticky top-8 space-y-8">
             
-            {/* --- My Watchlist --- */}
             <Watchlist 
               searchQuery={searchQuery} 
               selectedStock={selectedStock} 
-              setSelectedStock={setSelectedStock} 
+              setSelectedStock={setSelectedStock}
+              watchlist={watchlist}
+              loading={loadingWatchlist}
             />
 
-            {/* --- Trending Stocks --- */}
             <TrendingStocks 
               searchQuery={searchQuery} 
               selectedStock={selectedStock} 
@@ -114,7 +122,6 @@ const apiKey = 'E4W85A2W5Q6Q8Q7Q';
   );
 }
 
-// --- Header Component ---
 function Header() {
   return (
     <div>
@@ -126,7 +133,6 @@ function Header() {
   );
 }
 
-// --- Search Bar Component ---
 function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
   const [searchResults, setSearchResults] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -136,7 +142,7 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
       if (searchQuery.length > 1) {
         setLoading(true);
         try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=E4W85A2W5Q6Q8Q7Q`);
+          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=${process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY}`);
           const data = await response.json();
           setSearchResults(data.bestMatches || []);
         } catch (error) {
@@ -192,7 +198,6 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
   );
 }
 
-// --- Market Overview Component ---
 function MarketOverview() {
   const [marketData, setMarketData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -207,7 +212,7 @@ function MarketOverview() {
         QQQ: 'NASDAQ',
         IWM: 'Russell 2000',
       };
-      const apiKey = 'E4W85A2W5Q6Q8Q7Q';
+      const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
       const requests = symbols.map(symbol =>
         fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`)
           .then(res => res.json())
@@ -217,16 +222,21 @@ function MarketOverview() {
         const results = await Promise.all(requests);
         const data = results.map((result, index) => {
           const quote = result['Global Quote'];
-          const change = parseFloat(quote['09. change']);
-          const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
-          return {
-            name: names[symbols[index]],
-            value: parseFloat(quote['05. price']).toFixed(2),
-            change: change.toFixed(2),
-            changePercent: changePercent.toFixed(2),
-            up: change >= 0,
-          };
-        });
+          if (quote) {
+            const change = parseFloat(quote['09. change']);
+            const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+            return {
+              name: names[symbols[index]],
+              value: parseFloat(quote['05. price']).toFixed(2),
+              change: change.toFixed(2),
+              changePercent: changePercent.toFixed(2),
+              up: change >= 0,
+            };
+          } else {
+            console.warn(`Could not fetch quote for symbol: ${symbols[index]}`);
+            return null;
+          }
+        }).filter(Boolean); // Filter out null values
         setMarketData(data);
       } catch (error) {
         console.error("Error fetching market data:", error);
@@ -236,6 +246,8 @@ function MarketOverview() {
     };
 
     fetchMarketData();
+    const interval = setInterval(fetchMarketData, 15000);
+    return () => clearInterval(interval);
   }, []);
 
   if (loading) {
@@ -274,9 +286,91 @@ function MarketOverview() {
   );
 }
 
-// --- Stock Details Component (Tabs + Profile) ---
-function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, loading }) {
+function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, loading, watchlist, fetchWatchlist }) {
   const tabs = ['Stock Profile', 'Analysis', 'News'];
+  const [news, setNews] = useState([]);
+  const [loadingNews, setLoadingNews] = useState(false);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
+
+  const isinWatchlist = selectedStock && watchlist.some(item => item.symbol === selectedStock['1. symbol']);
+
+  const handleToggleWatchlist = async () => {
+    if (!selectedStock) return;
+
+    const symbol = selectedStock['1. symbol'];
+
+    if (isinWatchlist) {
+      try {
+        const response = await fetch('/api/watchlist', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        });
+        if (response.ok) {
+          fetchWatchlist();
+        } else {
+          console.error("Failed to remove from watchlist");
+        }
+      } catch (error) {
+        console.error("Error removing from watchlist:", error);
+      }
+    } else {
+      try {
+        const response = await fetch('/api/watchlist', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ symbol }),
+        });
+        if (response.ok) {
+          fetchWatchlist();
+        } else {
+          console.error("Failed to add to watchlist");
+        }
+      } catch (error) {
+        console.error("Error adding to watchlist:", error);
+      }
+    }
+  };
+
+  useEffect(() => {
+    const fetchNews = async () => {
+      if (activeTab === 'News' && selectedStock) {
+        setLoadingNews(true);
+        try {
+          const symbol = selectedStock['1. symbol'];
+          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+          const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbol}&apikey=${apiKey}`;
+          const response = await fetch(url);
+          const data = await response.json();
+          setNews(data.feed || []);
+        } catch (error) {
+          console.error("Error fetching news:", error);
+        }
+        setLoadingNews(false);
+      }
+    };
+
+    const fetchAnalysis = async () => {
+        if (activeTab === 'Analysis' && selectedStock) {
+            setLoadingAnalysis(true);
+            try {
+                const symbol = selectedStock['1. symbol'];
+                const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+                const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${apiKey}`;
+                const response = await fetch(url);
+                const data = await response.json();
+                setAnalysisData(data);
+            } catch (error) {
+                console.error("Error fetching analysis:", error);
+            }
+            setLoadingAnalysis(false);
+        }
+    };
+
+    fetchNews();
+    fetchAnalysis();
+  }, [activeTab, selectedStock]);
 
   const renderContent = () => {
     if (loading) {
@@ -291,9 +385,21 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
 
       return (
         <div>
-          <div className="flex items-center">
-            <h3 className="text-2xl font-bold text-gray-900">{stockDetails.Symbol}</h3>
-            <span className="ml-3 text-lg text-gray-500">{stockDetails.Name}</span>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <h3 className="text-2xl font-bold text-gray-900">{stockDetails.Symbol}</h3>
+              <span className="ml-3 text-lg text-gray-500">{stockDetails.Name}</span>
+            </div>
+            <button
+              onClick={handleToggleWatchlist}
+              className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
+                isinWatchlist
+                  ? 'bg-yellow-400 text-white hover:bg-yellow-500'
+                  : 'bg-gray-200 text-gray-800 hover:bg-gray-300'
+              }`}
+            >
+              {isinWatchlist ? 'Remove from Watchlist' : 'Add to Watchlist'}
+            </button>
           </div>
           <p className="text-gray-600 mt-4 leading-relaxed">
             {stockDetails.Description}
@@ -309,7 +415,6 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
       );
     }
 
-    // Default view when no stock is selected or details are not available
     return (
       <div>
         <div className="flex items-center">
@@ -322,18 +427,56 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
     );
   };
 
+  const renderNews = () => {
+    if (loadingNews) {
+      return <div className="text-center p-8">Loading news...</div>;
+    }
+
+    if (news.length > 0) {
+      return (
+        <div className="space-y-4">
+          {news.map((article, index) => (
+            <a href={article.url} key={index} target="_blank" rel="noopener noreferrer" className="block p-4 bg-gray-50 rounded-lg hover:bg-gray-100">
+              <h4 className="font-bold text-gray-900">{article.title}</h4>
+              <p className="text-sm text-gray-500 mt-1">{article.source} - {new Date(article.time_published).toLocaleDateString()}</p>
+              <p className="text-gray-600 mt-2">{article.summary}</p>
+            </a>
+          ))}
+        </div>
+      );
+    }
+
+    return <div className="text-gray-600">No news available for this stock.</div>;
+  };
+
+  const renderAnalysis = () => {
+    if (loadingAnalysis) {
+        return <div className="text-center p-8">Loading analysis...</div>;
+    }
+
+    if (analysisData) {
+        return (
+            <div>
+                <pre>{JSON.stringify(analysisData, null, 2)}</pre>
+            </div>
+        );
+    }
+
+    return <div className="text-gray-600">No analysis data available for this stock.</div>;
+  };
+
   return (
     <div className="bg-white rounded-lg shadow-sm border border-gray-100">
-      {/* --- Tabs --- */}
       <div className="flex border-b border-gray-200">
         {tabs.map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`py-3 px-6 font-medium text-sm
-              ${activeTab === tab 
-                ? 'text-blue-600 border-b-2 border-blue-600' 
-                : 'text-gray-500 hover:text-gray-700'
+              ${
+                activeTab === tab
+                  ? 'text-blue-600 border-b-2 border-blue-600'
+                  : 'text-gray-500 hover:text-gray-700'
               }
             `}
           >
@@ -342,21 +485,16 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
         ))}
       </div>
 
-      {/* --- Tab Content --- */}
       <div className="p-6">
         {activeTab === 'Stock Profile' && renderContent()}
-        {activeTab === 'Analysis' && (
-          <div className="text-gray-600">Analysis content would go here...</div>
-        )}
-        {activeTab === 'News' && (
-          <div className="text-gray-600">News articles would go here...</div>
-        )}
+        {activeTab === 'Analysis' && renderAnalysis()}
+        {activeTab === 'News' && renderNews()}
       </div>
     </div>
   );
 }
 
-// --- Price Chart Component ---
+
 function PriceChart({ selectedStock }) {
   const [chartData, setChartData] = useState({ labels: [], datasets: [] });
   const [loading, setLoading] = useState(true);
@@ -367,23 +505,19 @@ function PriceChart({ selectedStock }) {
       setLoading(true);
       setError(null);
       const symbol = selectedStock ? selectedStock['1. symbol'] : 'TSLA';
-      const apiKey = 'E4W85A2W5Q6Q8Q7Q'; // User has added their API key here.
+      const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
 
       const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}&outputsize=compact`;
-      console.log("Fetching chart data from:", url);
 
       try {
         const response = await fetch(url);
         const data = await response.json();
-        console.log("Alpha Vantage API Response:", data);
 
         const timeSeries = data['Time Series (Daily)'];
 
         if (timeSeries) {
           const labels = Object.keys(timeSeries).slice(0, 30).reverse();
           const prices = labels.map(label => parseFloat(timeSeries[label]['4. close']));
-          console.log("Processed Labels:", labels);
-          console.log("Processed Prices:", prices);
 
           setChartData({
             labels,
@@ -414,7 +548,6 @@ function PriceChart({ selectedStock }) {
           });
         } else {
           const errorMessage = data['Information'] || data['Error Message'] || 'Could not fetch time series data.';
-          console.error('API Error:', errorMessage);
           setError(errorMessage);
           setChartData({ labels: [], datasets: [] });
         }
@@ -467,7 +600,7 @@ function PriceChart({ selectedStock }) {
           maxRotation: 0,
           minRotation: 0,
           autoSkip: true,
-          maxTicksLimit: 7 // Show fewer labels on the x-axis
+          maxTicksLimit: 7
         }
       },
       y: {
@@ -514,7 +647,6 @@ function PriceChart({ selectedStock }) {
 }
 
 
-// --- Key Statistics Component ---
 function KeyStatistics({ stockDetails, loading }) {
   const formatNumber = (numStr) => {
     const num = parseFloat(numStr);
@@ -574,22 +706,55 @@ function KeyStatistics({ stockDetails, loading }) {
   );
 }
 
-// --- Watchlist Component ---
-function Watchlist({ searchQuery, selectedStock, setSelectedStock }) {
-  // Data would come from an API or user's database
-  const stocks = [
-    { ticker: 'AAPL', name: 'Apple Inc.', price: '$178.45', change: '+1.33%', up: true },
-    { ticker: 'GOOGL', name: 'Alphabet Inc.', price: '$142.87', change: '-0.85%', up: false },
-    { ticker: 'MSFT', name: 'Microsoft', price: '$412.34', change: '+1.39%', up: true },
-  ];
+function Watchlist({ searchQuery, selectedStock, setSelectedStock, watchlist, loading }) {
+  const [watchlistDetails, setWatchlistDetails] = useState([]);
+  const [loadingDetails, setLoadingDetails] = useState(false);
 
-  const filteredStocks = stocks.filter((stock) =>
-    stock.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    stock.ticker.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  useEffect(() => {
+    const fetchWatchlistDetails = async () => {
+      if (watchlist.length > 0) {
+        setLoadingDetails(true);
+        try {
+          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+          const requests = watchlist.map(stock =>
+            fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`)
+              .then(res => res.json())
+          );
+          const results = await Promise.all(requests);
+          const data = results.map((result, index) => {
+            const quote = result['Global Quote'];
+            if (quote && quote['05. price']) {
+              const change = parseFloat(quote['09. change']);
+              const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
+              return {
+                symbol: watchlist[index].symbol,
+                name: quote['02. name'] || watchlist[index].symbol,
+                price: parseFloat(quote['05. price']).toFixed(2),
+                change: change.toFixed(2),
+                changePercent: changePercent.toFixed(2),
+                up: change >= 0,
+              };
+            }
+            return null;
+          }).filter(Boolean); // remove nulls
+          setWatchlistDetails(data);
+        } catch (error) {
+          console.error("Error fetching watchlist details:", error);
+        } finally {
+          setLoadingDetails(false);
+        }
+      } else {
+        setWatchlistDetails([]);
+      }
+    };
+
+    fetchWatchlistDetails();
+    const interval = setInterval(fetchWatchlistDetails, 15000);
+    return () => clearInterval(interval);
+  }, [watchlist]);
 
   const handleSelectStock = (stock) => {
-    setSelectedStock({ '1. symbol': stock.ticker, '2. name': stock.name });
+    setSelectedStock({ '1. symbol': stock.symbol, '2. name': stock.name });
   };
 
   return (
@@ -599,37 +764,38 @@ function Watchlist({ searchQuery, selectedStock, setSelectedStock }) {
         <h2 className="text-xl font-semibold text-gray-900 ml-2">My Watchlist</h2>
       </div>
       <div className="space-y-2">
-        {filteredStocks.length > 0 ? (
-          filteredStocks.map((stock) => (
-            <div 
-              key={stock.ticker} 
-              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+        {loading || loadingDetails ? (
+          <div className="text-center text-gray-500">Loading...</div>
+        ) : watchlistDetails.length > 0 ? (
+          watchlistDetails.map((stock) => (
+            <div
+              key={stock.symbol}
+              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.symbol ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
               onClick={() => handleSelectStock(stock)}
             >
               <div>
-                <p className="font-bold text-gray-900">{stock.ticker}</p>
+                <p className="font-bold text-gray-900">{stock.symbol}</p>
                 <p className="text-sm text-gray-500">{stock.name}</p>
               </div>
               <div className="text-right">
-                <p className="font-semibold text-gray-900">{stock.price}</p>
+                <p className="font-semibold text-gray-900">${stock.price}</p>
                 <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
                   {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
-                  <span className="font-medium ml-1">{stock.change}</span>
+                  <span className="font-medium ml-1">{stock.change} ({stock.changePercent}%)</span>
                 </div>
               </div>
             </div>
           ))
         ) : (
-          <p className="text-gray-500">No results found.</p>
+          <p className="text-gray-500">Your watchlist is empty.</p>
         )}
       </div>
     </div>
   );
 }
 
-// --- Trending Stocks Component ---
+
 function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
-  // Data would come from an API
   const stocks = [
     { ticker: 'NVDA', name: 'NVIDIA Corp', price: '$875.28', change: '+1.44%', up: true },
     { ticker: 'META', name: 'Meta Platforms', price: '$512.45', change: '+1.63%', up: true },
@@ -655,7 +821,8 @@ function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
           filteredStocks.map((stock) => (
             <div 
               key={stock.ticker} 
-              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
+              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${
+                selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
               onClick={() => handleSelectStock(stock)}
             >
               <div>
