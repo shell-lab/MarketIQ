@@ -1,5 +1,8 @@
+"use client";
+
 import { useState, useEffect } from 'react';
 import { FiStar } from 'react-icons/fi';
+import Link from 'next/link';
 
 // Firebase Client SDK (for frontend auth & journal)
 import { initializeApp } from 'firebase/app';
@@ -13,7 +16,7 @@ const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
 let db, auth;
 
-export default function TradePage() {
+export default function TradeTerminal() {
     // --- App State ---
     const [userId, setUserId] = useState(null);
     const [idToken, setIdToken] = useState(null);
@@ -298,34 +301,64 @@ export default function TradePage() {
     };
 
     return (
-        <>
-            <style>{`
-                .loader {
-                    border-top-color: #3498db;
-                    animation: spin 1s linear infinite;
-                }
-                @keyframes spin {
-                    to { transform: rotate(360deg); }
-                }
-            `}</style>
+        <div className="min-h-screen bg-white">
+            {/* Navigation Bar */}
+            <nav className="bg-white border-b border-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between h-16 items-center">
+                        {/* Left side - Brand */}
+                        <div className="flex items-center">
+                            <Link 
+                                href="/dashboard" 
+                                className="text-xl font-bold text-gray-800"
+                            >
+                                Market<span className="text-blue-600">IQ</span>
+                            </Link>
+                        </div>
 
-            <div className="container mx-auto p-4 max-w-7xl text-gray-200">
-                <header className="flex justify-between items-center mb-6">
-                    <h1 className="text-3xl font-bold text-white">Market<span className="text-blue-400">IQ</span> - Trade</h1>
-                    <div className="text-sm text-gray-400">
-                        {isAuthReady ? `User: ${userId}` : 'Connecting...'}
+                        {/* Right side - Navigation */}
+                        <div className="flex items-center space-x-4">
+                            <Link
+                                href="/dashboard"
+                                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            >
+                                Dashboard
+                            </Link>
+                            
+                            <Link
+                                href="/profile"
+                                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            >
+                                Profile
+                            </Link>
+
+                            <button
+                                onClick={() => signOut({ callbackUrl: '/login' })}
+                                className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
                     </div>
-                </header>
+                </div>
+            </nav>
+
+            <div className="container mx-auto p-4 max-w-7xl text-gray-800">
+                {/* User Status */}
+                <div className="text-sm text-gray-500 mb-4">
+                    {isAuthReady ? `User: ${userId}` : 'Connecting...'}
+                </div>
 
                 <div className="flex flex-col lg:flex-row gap-6">
-
                     {/* Left Panel: Trade Execution */}
-                    <div className="lg:w-1/3 w-full bg-gray-800 p-5 rounded-xl shadow-lg">
-                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-700 pb-2">{currentSymbol}</h2>
+                    <div className="lg:w-1/3 w-full bg-white border border-gray-200 p-5 rounded-xl shadow-sm">
+                        <h2 className="text-xl font-semibold mb-4 border-b border-gray-200 pb-2">{currentSymbol}</h2>
 
                         {/* Message Box */}
                         {message.show && (
-                            <div className={`p-3 rounded-lg text-sm mb-4 ${message.isError ? 'bg-red-800 text-red-100' : 'bg-green-800 text-green-100'}`}>
+                            <div className={`p-3 rounded-lg text-sm mb-4 ${
+                                message.isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'
+                            }`}>
                                 {message.text}
                             </div>
                         )}
@@ -333,7 +366,9 @@ export default function TradePage() {
                         <div className="space-y-4">
                             {/* Volume */}
                             <div>
-                                <label htmlFor="lots-input" className="block text-sm font-medium text-gray-400 mb-1">Volume (Lots)</label>
+                                <label htmlFor="lots-input" className="block text-sm font-medium text-gray-600 mb-1">
+                                    Volume (Lots)
+                                </label>
                                 <input
                                     type="number"
                                     id="lots-input"
@@ -341,47 +376,49 @@ export default function TradePage() {
                                     onChange={(e) => setLots(e.target.value)}
                                     step="0.01"
                                     min="0.01"
-                                    className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full bg-white text-gray-800 p-2 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
 
                             {/* Take Profit */}
                             <div>
-                                <label htmlFor="tp-input" className="block text-sm font-medium text-gray-400 mb-1">Take Profit (Price)</label>
+                                <label htmlFor="tp-input" className="block text-sm font-medium text-gray-600 mb-1">
+                                    Take Profit (Price)
+                                </label>
                                 <input
                                     type="number"
                                     id="tp-input"
                                     value={takeProfit}
                                     onChange={(e) => setTakeProfit(e.target.value)}
                                     placeholder="Not set"
-                                    className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full bg-white text-gray-800 p-2 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
 
                             {/* Stop Loss */}
                             <div>
-                                <label htmlFor="sl-input" className="block text-sm font-medium text-gray-400 mb-1">Stop Loss (Price)</label>
+                                <label htmlFor="sl-input" className="block text-sm font-medium text-gray-600 mb-1">
+                                    Stop Loss (Price)
+                                </label>
                                 <input
                                     type="number"
                                     id="sl-input"
                                     value={stopLoss}
                                     onChange={(e) => setStopLoss(e.target.value)}
                                     placeholder="Not set"
-                                    className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full bg-white text-gray-800 p-2 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                 />
                             </div>
 
                             {/* Buy/Sell Buttons */}
                             <div className="grid grid-cols-2 gap-4 pt-4">
                                 <button
-                                    id="sell-button"
                                     onClick={() => placeTrade('sell')}
                                     className="w-full bg-orange-600 hover:bg-orange-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
                                 >
                                     SELL
                                 </button>
                                 <button
-                                    id="buy-button"
                                     onClick={() => placeTrade('buy')}
                                     className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg transition duration-200"
                                 >
@@ -393,16 +430,17 @@ export default function TradePage() {
 
                     {/* Right Panel: Positions & Journal */}
                     <div className="lg:w-2/3 w-full space-y-6">
-                        
                         {/* Positions Table */}
-                        <div className="bg-gray-800 rounded-xl shadow-lg overflow-hidden">
-                            <div className="flex justify-between items-center p-4 border-b border-gray-700">
+                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm overflow-hidden">
+                            <div className="flex justify-between items-center p-4 border-b border-gray-200">
                                 <h2 className="text-xl font-semibold">Open Positions</h2>
-                                {isLoading && <div className="loader w-5 h-5 rounded-full border-4 border-gray-700"></div>}
+                                {isLoading && (
+                                    <div className="loader w-5 h-5 rounded-full border-4 border-gray-200 border-t-blue-600"></div>
+                                )}
                             </div>
                             <div className="overflow-x-auto">
-                                <table id="positions-table" className="w-full text-left text-sm">
-                                    <thead className="bg-gray-700 text-gray-400 uppercase">
+                                <table className="w-full text-left text-sm">
+                                    <thead className="bg-gray-50 text-gray-600 uppercase">
                                         <tr>
                                             <th className="py-3 px-3"></th>
                                             <th className="py-3 px-3">ID</th>
@@ -415,7 +453,7 @@ export default function TradePage() {
                                             <th className="py-3 px-3">P&L</th>
                                         </tr>
                                     </thead>
-                                    <tbody className="divide-y divide-gray-700">
+                                    <tbody className="divide-y divide-gray-200">
                                         {renderPositions()}
                                     </tbody>
                                 </table>
@@ -423,18 +461,18 @@ export default function TradePage() {
                         </div>
 
                         {/* Trade Journal */}
-                        <div className="bg-gray-800 rounded-xl shadow-lg p-4">
+                        <div className="bg-white border border-gray-200 rounded-xl shadow-sm p-4">
                             <h2 className="text-xl font-semibold mb-3">Trade Journal</h2>
                             <form className="mb-4" onSubmit={addJournalEntry}>
                                 <textarea
                                     id="journalInput"
                                     rows="3"
-                                    className="w-full bg-gray-700 text-white p-2 rounded-lg border border-gray-600 focus:ring-blue-500 focus:border-blue-500"
+                                    className="w-full bg-white text-gray-800 p-2 rounded-lg border border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                     placeholder="Add a note about your trades..."
                                 ></textarea>
                                 <button
                                     type="submit"
-                                    className="mt-2 bg-blue-600 hover:bg-blue-7D0 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
+                                    className="mt-2 bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg transition duration-200"
                                 >
                                     Save Note
                                 </button>
@@ -446,7 +484,7 @@ export default function TradePage() {
                     </div>
                 </div>
             </div>
-        </>
+        </div>
     );
 }
 

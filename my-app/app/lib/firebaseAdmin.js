@@ -1,20 +1,19 @@
 import admin from 'firebase-admin';
 
-// This is your SERVICE ACCOUNT KEY.
-// DO NOT hardcode it. Store it in environment variables.
-// Example: process.env.FIREBASE_SERVICE_ACCOUNT
-const serviceAccount = JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT || '{}');
+const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT;
 
 if (!admin.apps.length) {
-    try {
-        admin.initializeApp({
-            credential: admin.credential.cert(serviceAccount),
-            // Add your databaseURL if needed, e.g.:
-            // databaseURL: "https://<PROJECT_ID>.firebaseio.com"
-        });
-    } catch (e) {
-        console.error('Firebase admin initialization error', e);
-    }
+  try {
+    admin.initializeApp({
+      credential: admin.credential.cert(
+        typeof serviceAccount === 'string' 
+          ? JSON.parse(serviceAccount)
+          : serviceAccount
+      )
+    });
+  } catch (error) {
+    console.error('Firebase admin initialization error:', error.stack);
+  }
 }
 
 export default admin;

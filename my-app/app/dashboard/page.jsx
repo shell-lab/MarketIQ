@@ -1,5 +1,7 @@
-'use client';
+"use client";
 
+import { signOut } from "next-auth/react";
+import Link from "next/link";
 import { useState, useEffect } from 'react';
 // Import icons
 import { FiSearch, FiStar } from 'react-icons/fi';
@@ -44,7 +46,7 @@ export default function DashboardPage() {
         setLoadingDetails(true);
         try {
           const symbol = selectedStock['1. symbol'];
-          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+          const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
           const quoteUrl = `https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`;
           const overviewUrl = `https://www.alphavantage.co/query?function=OVERVIEW&symbol=${symbol}&apikey=${apiKey}`;
 
@@ -71,53 +73,106 @@ export default function DashboardPage() {
 
 
   return (
-    <div className="min-h-screen bg-gray-50 p-8">
-      <div className="max-w-[1600px] mx-auto grid grid-cols-3 gap-8">
-        
-        <div className="col-span-3 lg:col-span-2 space-y-8">
-          
-          <Header />
+    <div className="min-h-screen bg-white">
+      {/* Navigation Bar */}
+      <nav className="bg-white border-b border-gray-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            {/* Left side - Brand/Logo */}
+            <div className="flex items-center">
+              <Link 
+                href="/dashboard" 
+                className="text-xl font-bold text-gray-800"
+              >
+                Market<span className="text-blue-600">IQ</span>
+              </Link>
+            </div>
 
-          <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} setSelectedStock={setSelectedStock} />
+            {/* Right side - Navigation Links */}
+            <div className="flex items-center space-x-4">
+              <Link
+                href="/trade"
+                className="px-4 py-2 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors"
+              >
+                Trade Terminal
+              </Link>
+              
+              <Link
+                href="/profile"
+                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Profile
+              </Link>
 
-          <MarketOverview />
+              <Link
+                href="/contact"
+                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+              >
+                Contact
+              </Link>
 
-          <StockDetails 
-            activeTab={activeTab} 
-            setActiveTab={setActiveTab} 
-            selectedStock={selectedStock} 
-            stockDetails={stockDetails} 
-            loading={loadingDetails}
-            watchlist={watchlist}
-            fetchWatchlist={fetchWatchlist}
-          />
-          
-          <PriceChart selectedStock={selectedStock} />
-
-          <KeyStatistics stockDetails={stockDetails} loading={loadingDetails} />
-
-        </div>
-
-        <div className="col-span-3 lg:col-span-1">
-          <div className="sticky top-8 space-y-8">
-            
-            <Watchlist 
-              searchQuery={searchQuery} 
-              selectedStock={selectedStock} 
-              setSelectedStock={setSelectedStock}
-              watchlist={watchlist}
-              loading={loadingWatchlist}
-            />
-
-            <TrendingStocks 
-              searchQuery={searchQuery} 
-              selectedStock={selectedStock} 
-              setSelectedStock={setSelectedStock} 
-            />
-
+              <button
+                onClick={() => signOut({ callbackUrl: '/login' })}
+                className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+              >
+                Sign Out
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      </nav>
+
+      {/* Dashboard Content */}
+      <main className="max-w-7xl mx-auto py-6 px-4 sm:px-6 lg:px-8">
+        {/* Your existing dashboard content goes here */}
+
+        <div className="max-w-[1600px] mx-auto grid grid-cols-3 gap-8">
+          
+          <div className="col-span-3 lg:col-span-2 space-y-8">
+            
+            <Header />
+
+            <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} setSelectedStock={setSelectedStock} />
+
+            <MarketOverview />
+
+            <StockDetails 
+              activeTab={activeTab} 
+              setActiveTab={setActiveTab} 
+              selectedStock={selectedStock} 
+              stockDetails={stockDetails} 
+              loading={loadingDetails}
+              watchlist={watchlist}
+              fetchWatchlist={fetchWatchlist}
+            />
+            
+            <PriceChart selectedStock={selectedStock} />
+
+            <KeyStatistics stockDetails={stockDetails} loading={loadingDetails} />
+
+          </div>
+
+          <div className="col-span-3 lg:col-span-1">
+            <div className="sticky top-8 space-y-8">
+              
+              <Watchlist 
+                searchQuery={searchQuery} 
+                selectedStock={selectedStock} 
+                setSelectedStock={setSelectedStock}
+                watchlist={watchlist}
+                loading={loadingWatchlist}
+              />
+
+              <TrendingStocks 
+                searchQuery={searchQuery} 
+                selectedStock={selectedStock} 
+                setSelectedStock={setSelectedStock} 
+              />
+
+            </div>
+          </div>
+        </div>
+      </main>
     </div>
   );
 }
@@ -142,7 +197,7 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
       if (searchQuery.length > 1) {
         setLoading(true);
         try {
-          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=${process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY}`);
+          const response = await fetch(`https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${searchQuery}&apikey=${process.env.NEXT_PUBLIC_FINNHUB_API_KEY}`);
           const data = await response.json();
           setSearchResults(data.bestMatches || []);
         } catch (error) {
@@ -212,7 +267,7 @@ function MarketOverview() {
         QQQ: 'NASDAQ',
         IWM: 'Russell 2000',
       };
-      const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
       const requests = symbols.map(symbol =>
         fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${symbol}&apikey=${apiKey}`)
           .then(res => res.json())
@@ -339,7 +394,7 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
         setLoadingNews(true);
         try {
           const symbol = selectedStock['1. symbol'];
-          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+          const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
           const url = `https://www.alphavantage.co/query?function=NEWS_SENTIMENT&tickers=${symbol}&apikey=${apiKey}`;
           const response = await fetch(url);
           const data = await response.json();
@@ -356,7 +411,7 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
             setLoadingAnalysis(true);
             try {
                 const symbol = selectedStock['1. symbol'];
-                const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+                const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
                 const url = `https://www.alphavantage.co/query?function=INCOME_STATEMENT&symbol=${symbol}&apikey=${apiKey}`;
                 const response = await fetch(url);
                 const data = await response.json();
@@ -505,7 +560,7 @@ function PriceChart({ selectedStock }) {
       setLoading(true);
       setError(null);
       const symbol = selectedStock ? selectedStock['1. symbol'] : 'TSLA';
-      const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+      const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
 
       const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${symbol}&apikey=${apiKey}&outputsize=compact`;
 
@@ -715,7 +770,7 @@ function Watchlist({ searchQuery, selectedStock, setSelectedStock, watchlist, lo
       if (watchlist.length > 0) {
         setLoadingDetails(true);
         try {
-          const apiKey = process.env.NEXT_PUBLIC_ALPHA_VANTAGE_API_KEY;
+          const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
           const requests = watchlist.map(stock =>
             fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`)
               .then(res => res.json())

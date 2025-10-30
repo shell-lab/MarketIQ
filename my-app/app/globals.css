@@ -19,8 +19,19 @@
   }
 }
 
+/* Tailwind directives — required for Tailwind to generate styles */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* basic app variables */
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }

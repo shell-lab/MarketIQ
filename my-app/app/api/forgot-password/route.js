@@ -26,11 +26,17 @@ export async function POST(req) {
 
     let transporter;
     if (process.env.NODE_ENV === 'production') {
+      if (!process.env.EMAIL_HOST || !process.env.EMAIL_PORT || !process.env.EMAIL_USER || !process.env.EMAIL_PASS) {
+        console.error('Missing email configuration for production.');
+        return NextResponse.json({ message: 'Internal server error: email not configured.' }, { status: 500 });
+      }
       transporter = nodemailer.createTransport({
-        service: 'Gmail',
+        host: process.env.EMAIL_HOST,
+        port: process.env.EMAIL_PORT,
+        secure: process.env.EMAIL_PORT === '465', // true for 465, false for other ports
         auth: {
-          user: process.env.EMAIL_SERVER_USER,
-          pass: process.env.EMAIL_SERVER_PASSWORD,
+          user: process.env.EMAIL_USER,
+          pass: process.env.EMAIL_PASS,
         },
       });
     } else {
@@ -48,7 +54,7 @@ export async function POST(req) {
     }
 
     const mailOptions = {
-      from: process.env.EMAIL_FROM || '"Your App Name" <noreply@example.com>',
+      from: process.env.EMAIL_FROM || '"Market-IQ" <noreply@example.com>',
       to: user.email,
       subject: 'Your Password Reset Link',
       html: `
