@@ -42,20 +42,24 @@ export default function TopGainers() {
     fetchWatchlist();
   }, []);
 
-  const handleAddToWatchlist = async (ticker) => {
+  const handleToggleWatchlist = async (ticker) => {
+    const isInWatchlist = watchlist.includes(ticker);
+    const method = isInWatchlist ? 'DELETE' : 'POST';
+
     try {
       const response = await fetch('/api/watchlist', {
-        method: 'POST',
+        method,
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ symbol: ticker }),
       });
+
       if (response.ok) {
         fetchWatchlist();
       } else {
-        console.error("Failed to add to watchlist");
+        console.error(`Failed to ${isInWatchlist ? 'remove from' : 'add to'} watchlist`);
       }
     } catch (error) {
-      console.error("Error adding to watchlist:", error);
+      console.error(`Error toggling watchlist:`, error);
     }
   };
 
@@ -92,10 +96,10 @@ export default function TopGainers() {
                   <tr key={stock.ticker}>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                       <FiStar
-                        className={`cursor-pointer ${
+                        className={`cursor-pointer transition-colors ${
                           watchlist.includes(stock.ticker) ? 'text-yellow-500' : 'text-gray-500'
                         }`}
-                        onClick={() => handleAddToWatchlist(stock.ticker)}
+                        onClick={() => handleToggleWatchlist(stock.ticker)}
                       />
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">{stock.ticker}</td>

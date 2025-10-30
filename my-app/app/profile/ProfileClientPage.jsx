@@ -1,15 +1,33 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
 
 export default function ProfileClientPage({ user: initialUser }) {
   const [user, setUser] = useState(initialUser);
-
+  const [watchlist, setWatchlist] = useState([]);
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [message, setMessage] = useState({ text: "", type: "" });
+
+  useEffect(() => {
+    const fetchWatchlist = async () => {
+      try {
+        const response = await fetch("/api/watchlist");
+        if (response.ok) {
+          const data = await response.json();
+          setWatchlist(data);
+        } else {
+          console.error("Failed to fetch watchlist");
+        }
+      } catch (error) {
+        console.error("Error fetching watchlist:", error);
+      }
+    };
+
+    fetchWatchlist();
+  }, []);
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -33,6 +51,26 @@ export default function ProfileClientPage({ user: initialUser }) {
       setMessage({ text: "Failed to update profile", type: "error" });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleDelete = async (symbol) => {
+    try {
+      const response = await fetch("/api/watchlist", {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ symbol }),
+      });
+
+      if (response.ok) {
+        setWatchlist(watchlist.filter((item) => item.symbol !== symbol));
+      } else {
+        console.error("Failed to delete watchlist item");
+      }
+    } catch (error) {
+      console.error("Error deleting watchlist item:", error);
     }
   };
 
@@ -168,6 +206,33 @@ export default function ProfileClientPage({ user: initialUser }) {
                       <div className="text-sm text-gray-500">Win Rate</div>
                       <div className="text-lg font-medium text-green-600">64%</div>
                     </div>
+                  </div>
+                </div>
+
+                {/* Watchlist Section */}
+                <div>
+                  <h2 className="text-lg font-medium text-gray-900 mb-4">
+                    Watchlist
+                  </h2>
+                  <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-3">
+                    {watchlist.map((item) => (
+                      <div
+                        key={item.symbol}
+                        className="bg-white p-4 rounded-lg border border-gray-200 shadow-sm"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-lg font-bold text-gray-800">
+                            {item.symbol}
+                          </span>
+                          <button
+                            onClick={() => handleDelete(item.symbol)}
+                            className="text-red-500 hover:text-red-700"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
 

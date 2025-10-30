@@ -24,9 +24,7 @@ export default async function ProfilePage() {
     user._id = user._id.toString();
   }
 
-
   const plainUser = JSON.parse(JSON.stringify(user));
-
 
   return <ProfileClientPage user={plainUser} />;
 }

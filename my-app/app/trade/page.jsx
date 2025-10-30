@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef } from 'react';
+import { FiStar } from 'react-icons/fi';
 
 /*
   Full-page Demo Trade Terminal
@@ -35,7 +36,22 @@ export default function TradeDemoTerminal() {
   const [side, setSide] = useState("Buy");
   const [openPositions, setOpenPositions] = useState([]);
   const [journal, setJournal] = useState([]);
+  const [watchlist, setWatchlist] = useState([]);
   const priceRef = useRef(price);
+
+  const fetchWatchlist = async () => {
+    try {
+      const response = await fetch('/api/watchlist');
+      if (response.ok) {
+        const data = await response.json();
+        setWatchlist(data.map((item) => item.symbol));
+      } else {
+        console.error("Failed to fetch watchlist");
+      }
+    } catch (error) {
+      console.error("Error fetching watchlist:", error);
+    }
+  };
 
   // Persist & load demo state
   useEffect(() => {
@@ -44,6 +60,7 @@ export default function TradeDemoTerminal() {
       const j = localStorage.getItem("demo_journal");
       if (s) setOpenPositions(JSON.parse(s));
       if (j) setJournal(JSON.parse(j));
+      fetchWatchlist();
     } catch {}
   }, []);
 
@@ -132,6 +149,27 @@ export default function TradeDemoTerminal() {
     } catch {}
   }
 
+  const handleToggleWatchlist = async (ticker) => {
+    const isInWatchlist = watchlist.includes(ticker);
+    const method = isInWatchlist ? 'DELETE' : 'POST';
+
+    try {
+      const response = await fetch('/api/watchlist', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ symbol: ticker }),
+      });
+
+      if (response.ok) {
+        fetchWatchlist();
+      } else {
+        console.error(`Failed to ${isInWatchlist ? 'remove from' : 'add to'} watchlist`);
+      }
+    } catch (error) {
+      console.error(`Error toggling watchlist:`, error);
+    }
+  };
+
   // Header actions
   async function handleSignOut() {
     try {
@@ -201,12 +239,20 @@ export default function TradeDemoTerminal() {
           {/* Left: Terminal / Market feed */}
           <section className="flex-1 p-4 flex flex-col gap-4">
             <div className={`flex items-center justify-between p-4 rounded-md ${dark ? "bg-neutral-800" : "bg-white shadow-sm"}`}>
-              <div>
-                <div className="text-xs text-gray-400">Symbol</div>
-                <input
-                  value={symbol}
-                  onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                  className="text-2xl font-mono bg-transparent outline-none"
+              <div className="flex items-center">
+                <div>
+                  <div className="text-xs text-gray-400">Symbol</div>
+                  <input
+                    value={symbol}
+                    onChange={(e) => setSymbol(e.target.value.toUpperCase())}
+                    className="text-2xl font-mono bg-transparent outline-none"
+                  />
+                </div>
+                <FiStar
+                  className={`cursor-pointer transition-colors ml-2 ${
+                    watchlist.includes(symbol) ? 'text-yellow-500' : 'text-gray-500'
+                  }`}
+                  onClick={() => handleToggleWatchlist(symbol)}
                 />
               </div>
 
