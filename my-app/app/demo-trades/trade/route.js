@@ -1,5 +1,5 @@
 // app/api/demo-trade/trade/route.js
-import { getPrice } from '@/app/lib/marketData';
+import { getPrice } from '@/lib/marketData';
 import { NextResponse } from 'next/server';
 
 export async function POST(req) {
