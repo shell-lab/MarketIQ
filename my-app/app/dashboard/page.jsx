@@ -5,8 +5,10 @@ import Link from "next/link";
 import { useState, useEffect } from 'react';
 // Import icons
 import { FiSearch, FiStar } from 'react-icons/fi';
+import { FaStar } from 'react-icons/fa';
 import { GoArrowUpRight, GoArrowDownRight } from 'react-icons/go';
 import { Line } from 'react-chartjs-2';
+import Watchlist from '@/components/Watchlist';
 import { Chart as ChartJS, CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler } from 'chart.js';
 
 ChartJS.register(CategoryScale, LinearScale, PointElement, LineElement, Title, Tooltip, Legend, Filler);
@@ -34,6 +36,35 @@ export default function DashboardPage() {
       console.error("Error fetching watchlist:", error);
     }
     setLoadingWatchlist(false);
+  };
+
+  // Toggle watchlist entry for the current user (optimistic UI)
+  const toggleWatchlist = async (symbol) => {
+    if (!symbol) return;
+    const original = [...watchlist];
+    const isin = watchlist.some(item => item.symbol === symbol);
+
+    // Optimistic update
+    if (isin) setWatchlist(watchlist.filter(item => item.symbol !== symbol));
+    else setWatchlist([...watchlist, { symbol }]);
+
+    try {
+      const method = isin ? 'DELETE' : 'POST';
+      const res = await fetch('/api/watchlist', {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'same-origin',
+        body: JSON.stringify({ symbol }),
+      });
+      if (!res.ok) {
+        // revert
+        setWatchlist(original);
+        console.error('Failed to update watchlist');
+      }
+    } catch (err) {
+      setWatchlist(original);
+      console.error('Error toggling watchlist:', err);
+    }
   };
 
   useEffect(() => {
@@ -134,7 +165,7 @@ export default function DashboardPage() {
 
             <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} setSelectedStock={setSelectedStock} />
 
-            <MarketOverview />
+            <MarketOverview watchlist={watchlist} toggleWatchlist={toggleWatchlist} />
 
             <StockDetails 
               activeTab={activeTab} 
@@ -143,7 +174,7 @@ export default function DashboardPage() {
               stockDetails={stockDetails} 
               loading={loadingDetails}
               watchlist={watchlist}
-              fetchWatchlist={fetchWatchlist}
+              toggleWatchlist={toggleWatchlist}
             />
             
             <PriceChart selectedStock={selectedStock} />
@@ -161,12 +192,15 @@ export default function DashboardPage() {
                 setSelectedStock={setSelectedStock}
                 watchlist={watchlist}
                 loading={loadingWatchlist}
+                toggleWatchlist={toggleWatchlist}
               />
 
               <TrendingStocks 
                 searchQuery={searchQuery} 
                 selectedStock={selectedStock} 
                 setSelectedStock={setSelectedStock} 
+                watchlist={watchlist}
+                toggleWatchlist={toggleWatchlist}
               />
 
             </div>
@@ -253,7 +287,7 @@ function SearchBar({ searchQuery, setSearchQuery, setSelectedStock }) {
   );
 }
 
-function MarketOverview() {
+function MarketOverview({ watchlist, toggleWatchlist }) {
   const [marketData, setMarketData] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -327,10 +361,28 @@ function MarketOverview() {
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Market Overview</h2>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {marketData.map((market) => (
-          <div key={market.name} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100">
-            <h3 className="text-sm font-medium text-gray-500">{market.name}</h3>
-            <p className="text-2xl font-semibold text-gray-900 mt-2">{market.value}</p>
-            <div className={`flex items-center text-sm mt-1 ${market.up ? 'text-green-600' : 'text-red-600'}`}>
+          <div key={market.name} className="bg-white p-4 rounded-lg shadow-sm border border-gray-100 flex flex-col justify-between">
+            <div className="flex justify-between items-start">
+              <div>
+                <h3 className="text-sm font-medium text-gray-500">{market.name}</h3>
+                <p className="text-2xl font-semibold text-gray-900 mt-2">{market.value}</p>
+              </div>
+              <div>
+                {/* Add star for quick watch */}
+                <button
+                  onClick={() => {
+                    const symbol = market.name === 'S&P 500' ? 'SPY' : market.name === 'Dow Jones' ? 'DIA' : market.name === 'NASDAQ' ? 'QQQ' : 'IWM';
+                    // toggleWatchlist may be undefined if not passed
+                    if (typeof toggleWatchlist === 'function') toggleWatchlist(symbol);
+                  }}
+                  className="text-gray-300 hover:text-yellow-400 transition-colors"
+                  aria-label={`Toggle watch for ${market.name}`}
+                >
+                  <FiStar />
+                </button>
+              </div>
+            </div>
+            <div className={`flex items-center text-sm mt-4 ${market.up ? 'text-green-600' : 'text-red-600'}`}>
               {market.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
               <span className="font-medium ml-1">{market.change} ({market.changePercent}%)</span>
             </div>
@@ -341,7 +393,7 @@ function MarketOverview() {
   );
 }
 
-function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, loading, watchlist, fetchWatchlist }) {
+function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, loading, watchlist, toggleWatchlist }) {
   const tabs = ['Stock Profile', 'Analysis', 'News'];
   const [news, setNews] = useState([]);
   const [loadingNews, setLoadingNews] = useState(false);
@@ -350,43 +402,7 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
 
   const isinWatchlist = selectedStock && watchlist.some(item => item.symbol === selectedStock['1. symbol']);
 
-  const handleToggleWatchlist = async () => {
-    if (!selectedStock) return;
-
-    const symbol = selectedStock['1. symbol'];
-
-    if (isinWatchlist) {
-      try {
-        const response = await fetch('/api/watchlist', {
-          method: 'DELETE',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol }),
-        });
-        if (response.ok) {
-          fetchWatchlist();
-        } else {
-          console.error("Failed to remove from watchlist");
-        }
-      } catch (error) {
-        console.error("Error removing from watchlist:", error);
-      }
-    } else {
-      try {
-        const response = await fetch('/api/watchlist', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ symbol }),
-        });
-        if (response.ok) {
-          fetchWatchlist();
-        } else {
-          console.error("Failed to add to watchlist");
-        }
-      } catch (error) {
-        console.error("Error adding to watchlist:", error);
-      }
-    }
-  };
+  // watchlist toggle is handled via the parent passed-in `toggleWatchlist` function
 
   useEffect(() => {
     const fetchNews = async () => {
@@ -446,7 +462,7 @@ function StockDetails({ activeTab, setActiveTab, selectedStock, stockDetails, lo
               <span className="ml-3 text-lg text-gray-500">{stockDetails.Name}</span>
             </div>
             <button
-              onClick={handleToggleWatchlist}
+              onClick={() => toggleWatchlist(selectedStock['1. symbol'])}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 isinWatchlist
                   ? 'bg-yellow-400 text-white hover:bg-yellow-500'
@@ -761,96 +777,10 @@ function KeyStatistics({ stockDetails, loading }) {
   );
 }
 
-function Watchlist({ searchQuery, selectedStock, setSelectedStock, watchlist, loading }) {
-  const [watchlistDetails, setWatchlistDetails] = useState([]);
-  const [loadingDetails, setLoadingDetails] = useState(false);
-
-  useEffect(() => {
-    const fetchWatchlistDetails = async () => {
-      if (watchlist.length > 0) {
-        setLoadingDetails(true);
-        try {
-          const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
-          const requests = watchlist.map(stock =>
-            fetch(`https://www.alphavantage.co/query?function=GLOBAL_QUOTE&symbol=${stock.symbol}&apikey=${apiKey}`)
-              .then(res => res.json())
-          );
-          const results = await Promise.all(requests);
-          const data = results.map((result, index) => {
-            const quote = result['Global Quote'];
-            if (quote && quote['05. price']) {
-              const change = parseFloat(quote['09. change']);
-              const changePercent = parseFloat(quote['10. change percent'].replace('%', ''));
-              return {
-                symbol: watchlist[index].symbol,
-                name: quote['02. name'] || watchlist[index].symbol,
-                price: parseFloat(quote['05. price']).toFixed(2),
-                change: change.toFixed(2),
-                changePercent: changePercent.toFixed(2),
-                up: change >= 0,
-              };
-            }
-            return null;
-          }).filter(Boolean);
-          setWatchlistDetails(data);
-        } catch (error) {
-          console.error("Error fetching watchlist details:", error);
-        } finally {
-          setLoadingDetails(false);
-        }
-      } else {
-        setWatchlistDetails([]);
-      }
-    };
-
-    fetchWatchlistDetails();
-    const interval = setInterval(fetchWatchlistDetails, 15000);
-    return () => clearInterval(interval);
-  }, [watchlist]);
-
-  const handleSelectStock = (stock) => {
-    setSelectedStock({ '1. symbol': stock.symbol, '2. name': stock.name });
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-100 p-6">
-      <div className="flex items-center mb-4">
-        <FiStar className="text-yellow-500" />
-        <h2 className="text-xl font-semibold text-gray-900 ml-2">My Watchlist</h2>
-      </div>
-      <div className="space-y-2">
-        {loading || loadingDetails ? (
-          <div className="text-center text-gray-500">Loading...</div>
-        ) : watchlistDetails.length > 0 ? (
-          watchlistDetails.map((stock) => (
-            <div
-              key={stock.symbol}
-              className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${selectedStock && selectedStock['1. symbol'] === stock.symbol ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
-              onClick={() => handleSelectStock(stock)}
-            >
-              <div>
-                <p className="font-bold text-gray-900">{stock.symbol}</p>
-                <p className="text-sm text-gray-500">{stock.name}</p>
-              </div>
-              <div className="text-right">
-                <p className="font-semibold text-gray-900">${stock.price}</p>
-                <div className={`flex items-center justify-end text-sm ${stock.up ? 'text-green-600' : 'text-red-600'}`}>
-                  {stock.up ? <GoArrowUpRight /> : <GoArrowDownRight />}
-                  <span className="font-medium ml-1">{stock.change} ({stock.changePercent}%)</span>
-                </div>
-              </div>
-            </div>
-          ))
-        ) : (
-          <p className="text-gray-500">Your watchlist is empty.</p>
-        )}
-      </div>
-    </div>
-  );
-}
+// Watchlist moved to a standalone component at app/components/Watchlist.jsx
 
 
-function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
+function TrendingStocks({ searchQuery, selectedStock, setSelectedStock, watchlist, toggleWatchlist }) {
   const stocks = [
     { ticker: 'NVDA', name: 'NVIDIA Corp', price: '$875.28', change: '+1.44%', up: true },
     { ticker: 'META', name: 'Meta Platforms', price: '$512.45', change: '+1.63%', up: true },
@@ -873,16 +803,27 @@ function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
       <h2 className="text-xl font-semibold text-gray-900 mb-4">Trending Stocks</h2>
       <div className="space-y-2">
         {filteredStocks.length > 0 ? (
-          filteredStocks.map((stock) => (
+          filteredStocks.map((stock) => {
+            const isWatched = watchlist && watchlist.some(w => w.symbol === stock.ticker);
+            return (
             <div 
               key={stock.ticker} 
               className={`flex justify-between items-center p-2 rounded-md cursor-pointer transition-colors ${
                 selectedStock && selectedStock['1. symbol'] === stock.ticker ? 'bg-blue-100' : 'hover:bg-gray-100'}`}
               onClick={() => handleSelectStock(stock)}
             >
-              <div>
-                <p className="font-bold text-gray-900">{stock.ticker}</p>
-                <p className="text-sm text-gray-500">{stock.name}</p>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleWatchlist(stock.ticker); }}
+                  aria-label={isWatched ? 'Remove from watchlist' : 'Add to watchlist'}
+                  className={`transition-transform hover:scale-110 ${isWatched ? 'text-yellow-400' : 'text-gray-300'}`}
+                >
+                  {isWatched ? <FaStar /> : <FiStar />}
+                </button>
+                <div>
+                  <p className="font-bold text-gray-900">{stock.ticker}</p>
+                  <p className="text-sm text-gray-500">{stock.name}</p>
+                </div>
               </div>
               <div className="text-right">
                 <p className="font-semibold text-gray-900">{stock.price}</p>
@@ -892,7 +833,8 @@ function TrendingStocks({ searchQuery, selectedStock, setSelectedStock }) {
                 </div>
               </div>
             </div>
-          ))
+            )
+          })
         ) : (
           <p className="text-gray-500">No results found.</p>
         )}

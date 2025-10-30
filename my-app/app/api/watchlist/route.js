@@ -1,3 +1,6 @@
+
+
+
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "@/api/auth/[...nextauth]/route";
 import connectMongoDB from "@/lib/mongodb";
@@ -50,7 +53,7 @@ export async function POST(req) {
 
     const existingWatchlistItem = await Watchlist.findOne({ user: user._id, symbol });
     if (existingWatchlistItem) {
-      return NextResponse.json({ message: "Stock already in watchlist" }, { status: 200 });
+      return NextResponse.json({ message: "Stock already in watchlist" }, { status: 409 });
     }
 
     const newWatchlistItem = new Watchlist({

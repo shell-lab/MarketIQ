@@ -44,7 +44,9 @@ export default function TradeDemoTerminal() {
       const response = await fetch('/api/watchlist');
       if (response.ok) {
         const data = await response.json();
-        setWatchlist(data.map((item) => item.symbol));
+        if (data) {
+          setWatchlist(data.map((item) => item.symbol));
+        }
       } else {
         console.error("Failed to fetch watchlist");
       }
@@ -61,7 +63,9 @@ export default function TradeDemoTerminal() {
       if (s) setOpenPositions(JSON.parse(s));
       if (j) setJournal(JSON.parse(j));
       fetchWatchlist();
-    } catch {}
+    } catch (error) {
+      console.error("Error loading demo state:", error);
+    }
   }, []);
 
   useEffect(() => {
@@ -151,6 +155,15 @@ export default function TradeDemoTerminal() {
 
   const handleToggleWatchlist = async (ticker) => {
     const isInWatchlist = watchlist.includes(ticker);
+    const originalWatchlist = [...watchlist];
+
+    // Optimistically update the UI
+    if (isInWatchlist) {
+      setWatchlist(watchlist.filter((s) => s !== ticker));
+    } else {
+      setWatchlist([...watchlist, ticker]);
+    }
+
     const method = isInWatchlist ? 'DELETE' : 'POST';
 
     try {
@@ -160,12 +173,14 @@ export default function TradeDemoTerminal() {
         body: JSON.stringify({ symbol: ticker }),
       });
 
-      if (response.ok) {
-        fetchWatchlist();
-      } else {
+      if (!response.ok) {
+        // Revert the UI change if the API call fails
+        setWatchlist(originalWatchlist);
         console.error(`Failed to ${isInWatchlist ? 'remove from' : 'add to'} watchlist`);
       }
     } catch (error) {
+      // Revert the UI change if the API call fails
+      setWatchlist(originalWatchlist);
       console.error(`Error toggling watchlist:`, error);
     }
   };
