@@ -31,7 +31,7 @@
 }
 
 body {
-  background: var(--background);
+  background: #f9fafb;
   color: var(--foreground);
   font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
 }

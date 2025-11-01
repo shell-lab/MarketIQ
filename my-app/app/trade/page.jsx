@@ -1,397 +1,437 @@
+
 "use client";
 
-import { useState, useEffect, useRef } from 'react';
-import { FiStar } from 'react-icons/fi';
+import { useState, useEffect } from 'react';
+import Link from 'next/link';
 
-/*
-  Full-page Demo Trade Terminal
-  - Fullscreen terminal layout
-  - Dark mode toggle persisted to localStorage (adds/removes "dark" class on <html>)
-  - Header with Profile, Sign Out, Settings, Help
-  - Mock price feed, place/close orders, journal persisted to localStorage
-*/
+// Firebase Client SDK (for frontend auth & journal)
+import { initializeApp } from 'firebase/app';
+import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
+import { getFirestore, doc, collection, onSnapshot, query, addDoc } from 'firebase/firestore';
 
-const DEFAULT_SYMBOL = "AAPL";
+import TradeForm from './components/TradeForm';
+import PositionsTable from './components/PositionsTable';
+import Journal from './components/Journal';
+import Watchlist from './components/Watchlist';
+import SearchBar from './components/SearchBar';
+import Portfolio from './components/Portfolio';
 
-function formatPrice(p) {
-  return Number(p).toFixed(2);
-}
+// --- Firebase Config ---
+const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-export default function TradeDemoTerminal() {
-  // Theme
-  const [dark, setDark] = useState(() => {
-    try {
-      const s = localStorage.getItem("demo_theme");
-      if (s) return s === "dark";
-      return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-    } catch {
-      return true;
-    }
-  });
+let db, auth;
 
-  // Trading state
-  const [symbol, setSymbol] = useState(DEFAULT_SYMBOL);
-  const [price, setPrice] = useState(150.0);
-  const [lots, setLots] = useState(1);
-  const [side, setSide] = useState("Buy");
-  const [openPositions, setOpenPositions] = useState([]);
-  const [journal, setJournal] = useState([]);
-  const [watchlist, setWatchlist] = useState([]);
-  const priceRef = useRef(price);
+export default function TradeTerminal() {
+    const [userId, setUserId] = useState(null);
+    const [idToken, setIdToken] = useState(null);
+    const [isAuthReady, setIsAuthReady] = useState(false);
+    const [openPositions, setOpenPositions] = useState([]);
+    const [journalEntries, setJournalEntries] = useState([]);
+    const [currentSymbol, setCurrentSymbol] = useState("XAU/USD");
+    const [watchlist, setWatchlist] = useState([]);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [searchResults, setSearchResults] = useState([]);
+    const [searchLoading, setSearchLoading] = useState(false);
+    
+    const [lots, setLots] = useState(0.01);
+    const [takeProfit, setTakeProfit] = useState('');
+    const [stopLoss, setStopLoss] = useState('');
+    
+    const [isLoading, setIsLoading] = useState(false);
+    const [message, setMessage] = useState({ text: '', isError: false, show: false });
+    const [demoPortfolio, setDemoPortfolio] = useState(null);
+    const [demoHistory, setDemoHistory] = useState([]);
 
-  const fetchWatchlist = async () => {
-    try {
-      const response = await fetch('/api/watchlist');
-      if (response.ok) {
-        const data = await response.json();
-        if (data) {
-          setWatchlist(data.map((item) => item.symbol));
+    const DEMO_MODE = true;
+
+    const fetchWatchlist = async () => {
+        try {
+          const response = await fetch('/api/watchlist');
+          if (response.ok) {
+            const data = await response.json();
+            setWatchlist(data.map((item) => item.symbol));
+          } else {
+            console.error("Failed to fetch watchlist");
+          }
+        } catch (error) {
+          console.error("Error fetching watchlist:", error);
         }
-      } else {
-        console.error("Failed to fetch watchlist");
-      }
-    } catch (error) {
-      console.error("Error fetching watchlist:", error);
-    }
-  };
+      };
 
-  // Persist & load demo state
-  useEffect(() => {
-    try {
-      const s = localStorage.getItem("demo_openPositions");
-      const j = localStorage.getItem("demo_journal");
-      if (s) setOpenPositions(JSON.parse(s));
-      if (j) setJournal(JSON.parse(j));
-      fetchWatchlist();
-    } catch (error) {
-      console.error("Error loading demo state:", error);
-    }
-  }, []);
+    useEffect(() => {
+        try {
+            const app = initializeApp(firebaseConfig);
+            db = getFirestore(app);
+            auth = getAuth(app);
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("demo_openPositions", JSON.stringify(openPositions));
-    } catch {}
-  }, [openPositions]);
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    setUserId(user.uid);
+                    const token = await user.getIdToken();
+                    setIdToken(token);
+                    setIsAuthReady(true);
+                    console.log("Firebase Auth Ready. User:", user.uid);
+                    
+                    fetchOpenPositions(token);
+                    setupJournalListener(user.uid);
+                    fetchWatchlist();
+                } else {
+                    setIsAuthReady(false);
+                    setUserId(null);
+                    setIdToken(null);
+                }
+            });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem("demo_journal", JSON.stringify(journal));
-    } catch {}
-  }, [journal]);
+            (async () => {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            })();
 
-  // theme effect: add 'dark' class to <html> for Tailwind/class-based dark mode
-  useEffect(() => {
-    try {
-      localStorage.setItem("demo_theme", dark ? "dark" : "light");
-      if (dark) document.documentElement.classList.add("dark");
-      else document.documentElement.classList.remove("dark");
-    } catch {}
-  }, [dark]);
+        } catch (error) {
+            console.error("Firebase Init Error:", error);
+            showMessage("Error connecting to services. Check console.", true);
+        }
+    }, []);
 
-  // Mock price feed
-  useEffect(() => {
-    priceRef.current = price;
-    const id = setInterval(() => {
-      const drift = (Math.random() - 0.5) * 0.8;
-      const newPrice = Math.max(0.01, Number((priceRef.current + drift).toFixed(2)));
-      priceRef.current = newPrice;
-      setPrice(newPrice);
-    }, 700);
-    return () => clearInterval(id);
-  }, []);
+    useEffect(() => {
+        const ctl = new AbortController();
+        const fetchSearch = async () => {
+            if (!searchQuery || searchQuery.length < 2) {
+                setSearchResults([]);
+                return;
+            }
+            setSearchLoading(true);
+            try {
+                if (DEMO_MODE) {
+                    const res = await fetch('/api/demo-trade/search', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ keywords: searchQuery })
+                    });
+                    const data = await res.json();
+                    setSearchResults(data.matches || []);
+                } else {
+                    const apiKey = process.env.NEXT_PUBLIC_FINNHUB_API_KEY;
+                    const url = `https://www.alphavantage.co/query?function=SYMBOL_SEARCH&keywords=${encodeURIComponent(searchQuery)}&apikey=${apiKey}`;
+                    const res = await fetch(url, { signal: ctl.signal });
+                    const data = await res.json();
+                    setSearchResults(data.bestMatches || []);
+                }
+            } catch (err) {
+                if (err.name !== 'AbortError') console.error('Search error:', err);
+                setSearchResults([]);
+            } finally {
+                setSearchLoading(false);
+            }
+        };
 
-  // Actions
-  function placeOrder() {
-    if (!symbol.trim() || lots <= 0) return;
-    const executedPrice = priceRef.current;
-    const position = {
-      id: `pos_${Date.now()}`,
-      symbol: symbol.toUpperCase(),
-      side,
-      lots: Number(lots),
-      entryPrice: executedPrice,
-      createdAt: new Date().toISOString(),
+        const id = setTimeout(fetchSearch, 400);
+        return () => {
+            clearTimeout(id);
+            ctl.abort();
+        };
+    }, [searchQuery]);
+
+    useEffect(() => {
+        if (DEMO_MODE && isAuthReady) {
+            fetchDemoPortfolio();
+            fetchDemoHistory();
+        }
+    }, [DEMO_MODE, isAuthReady]);
+
+    const placeTrade = async (side) => {
+        if (!isAuthReady) {
+            showMessage("User not authenticated.", true);
+            return;
+        }
+        if (!lots || parseFloat(lots) <= 0) {
+            showMessage("Please enter a valid lot size.", true);
+            return;
+        }
+
+        const tradeOrder = DEMO_MODE ? {
+            symbol: currentSymbol,
+            side: side,
+            quantity: Number(parseFloat(lots)),
+            stopLoss: stopLoss ? Number(parseFloat(stopLoss)) : null,
+            takeProfit: takeProfit ? Number(parseFloat(takeProfit)) : null,
+        } : {
+            symbol: currentSymbol,
+            side: side,
+            volume: parseFloat(lots),
+            stopLoss: stopLoss ? parseFloat(stopLoss) : null,
+            takeProfit: takeProfit ? parseFloat(takeProfit) : null,
+        };
+
+        console.log("Placing order:", tradeOrder);
+        setIsLoading(true);
+
+        try {
+            let response, result;
+            if (DEMO_MODE) {
+                response = await fetch('/api/demo-trade/trade', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(tradeOrder)
+                });
+                result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to place demo trade.');
+                }
+
+                showMessage(`Demo trade executed: ${result.trade.side} ${result.trade.quantity} ${result.trade.symbol}`, false);
+                fetchDemoPortfolio();
+                fetchDemoHistory();
+            } else {
+                response = await fetch('/api/v1/order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`
+                    },
+                    body: JSON.stringify(tradeOrder)
+                });
+                result = await response.json();
+
+                if (!response.ok) {
+                    throw new Error(result.error || 'Failed to place trade.');
+                }
+
+                showMessage(`Trade placed successfully! Order ID: ${result.orderId}`, false);
+                fetchOpenPositions(idToken);
+            }
+            
+        } catch (error) {
+            console.error("Trade Error:", error);
+            showMessage(`Trade Error: ${error.message}`, true);
+        } finally {
+            setIsLoading(false);
+        }
     };
-    setOpenPositions((p) => [position, ...p]);
-  }
 
-  function closePosition(posId) {
-    const pos = openPositions.find((p) => p.id === posId);
-    if (!pos) return;
-    const exitPrice = priceRef.current;
-    const multiplier = pos.side === "Buy" ? 1 : -1;
-    const pnl = (exitPrice - pos.entryPrice) * pos.lots * multiplier;
-    const closed = {
-      ...pos,
-      exitPrice,
-      closedAt: new Date().toISOString(),
-      pnl: Number(pnl.toFixed(2)),
+    const fetchDemoPortfolio = async () => {
+        try {
+            const res = await fetch('/api/demo-trade/portfolio');
+            if (!res.ok) return;
+            const data = await res.json();
+            setDemoPortfolio(data);
+        } catch (err) {
+            console.error('Error fetching demo portfolio', err);
+        }
     };
-    setOpenPositions((list) => list.filter((p) => p.id !== posId));
-    setJournal((j) => [closed, ...j]);
-  }
 
-  function closeAll() {
-    const now = new Date().toISOString();
-    const closed = openPositions.map((pos) => {
-      const exitPrice = priceRef.current;
-      const multiplier = pos.side === "Buy" ? 1 : -1;
-      const pnl = (exitPrice - pos.entryPrice) * pos.lots * multiplier;
-      return { ...pos, exitPrice, closedAt: now, pnl: Number(pnl.toFixed(2)) };
-    });
-    setOpenPositions([]);
-    setJournal((j) => [...closed, ...j]);
-  }
+    const fetchDemoHistory = async () => {
+        try {
+            const res = await fetch('/api/demo-trade/history');
+            if (!res.ok) return;
+            const data = await res.json();
+            setDemoHistory(data);
+        } catch (err) {
+            console.error('Error fetching demo trade history', err);
+        }
+    };
 
-  function resetDemo() {
-    setOpenPositions([]);
-    setJournal([]);
-    try {
-      localStorage.removeItem("demo_openPositions");
-      localStorage.removeItem("demo_journal");
-    } catch {}
-  }
+    const handleToggleWatchlist = async (symbol) => {
+        if (!symbol) return;
+        try {
+            if (watchlist.includes(symbol)) {
+                const res = await fetch('/api/watchlist', {
+                    method: 'DELETE',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol }),
+                });
+                if (res.ok) await fetchWatchlist();
+            } else {
+                const res = await fetch('/api/watchlist', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ symbol }),
+                });
+                if (res.ok) await fetchWatchlist();
+            }
+        } catch (err) {
+            console.error('Error toggling watchlist from terminal:', err);
+        }
+    };
 
-  const handleToggleWatchlist = async (ticker) => {
-    const isInWatchlist = watchlist.includes(ticker);
-    const originalWatchlist = [...watchlist];
+    const fetchOpenPositions = async (token) => {
+        if (!token) return;
+        console.log("Fetching open positions...");
+        setIsLoading(true);
+        
+        try {
+            const response = await fetch('/api/v1/positions', {
+                headers: {
+                    'Authorization': `Bearer ${token}`
+                }
+            });
+            
+            if (!response.ok) {
+                const err = await response.json();
+                throw new Error(err.error || 'Failed to fetch positions.');
+            }
 
-    // Optimistically update the UI
-    if (isInWatchlist) {
-      setWatchlist(watchlist.filter((s) => s !== ticker));
-    } else {
-      setWatchlist([...watchlist, ticker]);
-    }
+            const positions = await response.json();
+            setOpenPositions(positions);
+            
+        } catch (error) {
+            console.error("Fetch Positions Error:", error);
+            showMessage(`Fetch Positions Error: ${error.message}`, true);
+            setOpenPositions([
+                { id: 12345, symbol: "XAU/USD", side: "Buy", volume: 0.01, openPrice: 4113.88, sl: 4100.00, tp: 4124.00, pnl: -2.11 },
+                { id: 12346, symbol: "EUR/USD", side: "Sell", volume: 0.10, openPrice: 1.1590, sl: 1.1650, tp: 1.1500, pnl: 5.40 }
+            ]);
+        } finally {
+            setIsLoading(false);
+        }
+    };
 
-    const method = isInWatchlist ? 'DELETE' : 'POST';
+    const setupJournalListener = (uid) => {
+        if (!uid) return;
+        const journalCollectionPath = `artifacts/${appId}/users/${uid}/trade_journal`;
+        const q = query(collection(db, journalCollectionPath));
+        
+        onSnapshot(q, (snapshot) => {
+            const entries = [];
+            snapshot.forEach((doc) => {
+                entries.push({ id: doc.id, ...doc.data() });
+            });
+            setJournalEntries(entries);
+        }, (error) => {
+            console.error("Journal listener error:", error);
+            showMessage("Could not load trade journal.", true);
+        });
+    };
 
-    try {
-      const response = await fetch('/api/watchlist', {
-        method,
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ symbol: ticker }),
-      });
+    const addJournalEntry = async (e) => {
+        e.preventDefault();
+        const note = e.target.elements.journalInput.value;
+        if (!note || !userId) return;
+        
+        const journalCollectionPath = `artifacts/${appId}/users/${userId}/trade_journal`;
+        
+        try {
+            await addDoc(collection(db, journalCollectionPath), {
+                note: note,
+                createdAt: new Date()
+            });
+            e.target.elements.journalInput.value = '';
+        } catch (error) {
+            console.error("Error adding journal entry:", error);
+            showMessage("Failed to save journal entry.", true);
+        }
+    };
 
-      if (!response.ok) {
-        // Revert the UI change if the API call fails
-        setWatchlist(originalWatchlist);
-        console.error(`Failed to ${isInWatchlist ? 'remove from' : 'add to'} watchlist`);
-      }
-    } catch (error) {
-      // Revert the UI change if the API call fails
-      setWatchlist(originalWatchlist);
-      console.error(`Error toggling watchlist:`, error);
-    }
-  };
+    const showMessage = (text, isError = false) => {
+        setMessage({ text, isError, show: true });
+        setTimeout(() => {
+            setMessage({ text: '', isError: false, show: false });
+        }, 3000);
+    };
 
-  // Header actions
-  async function handleSignOut() {
-    try {
-      const mod = await import("next-auth/react");
-      if (mod && mod.signOut) {
-        mod.signOut({ callbackUrl: "/" });
-        return;
-      }
-    } catch {
-      // next-auth not present -> fallback
-    }
-    // fallback: clear demo and redirect
-    try {
-      localStorage.removeItem("demo_openPositions");
-      localStorage.removeItem("demo_journal");
-    } catch {}
-    window.location.href = "/login";
-  }
-
-  function handleProfile() {
-    window.location.href = "/profile";
-  }
-  function handleSettings() {
-    window.location.href = "/settings";
-  }
-  function handleHelp() {
-    window.open("https://example.com/docs", "_blank");
-  }
-
-  const totalUnrealized = openPositions.reduce((sum, p) => {
-    const mult = p.side === "Buy" ? 1 : -1;
-    return sum + (price - p.entryPrice) * p.lots * mult;
-  }, 0);
-
-  const totalRealized = journal.reduce((sum, j) => sum + (j.pnl || 0), 0);
-
-  // Layout: full screen terminal-like
-  return (
-    <div className={`h-screen w-full flex flex-col ${dark ? "bg-neutral-900 text-neutral-100" : "bg-gray-50 text-gray-900"}`}>
-      {/* Header */}
-      <header className={`flex items-center justify-between px-4 py-2 border-b ${dark ? "border-neutral-800" : "border-gray-200"} bg-opacity-40`}>
-        <div className="flex items-center gap-3">
-          <div className="font-mono font-semibold text-lg">Trade Terminal</div>
-          <div className="text-xs text-gray-400 hidden sm:block">Demo • {symbol.toUpperCase()}</div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => setDark((d) => !d)}
-            title="Toggle dark mode"
-            className="px-3 py-1 rounded bg-gray-800 text-white dark:bg-white dark:text-black/90"
-            aria-pressed={dark}
-          >
-            {dark ? "Light" : "Dark"}
-          </button>
-
-          <button onClick={handleProfile} className="px-3 py-1 rounded border">{/* Profile */}Profile</button>
-          <button onClick={handleSettings} className="px-3 py-1 rounded border">Settings</button>
-          <button onClick={handleHelp} className="px-3 py-1 rounded border">Help</button>
-          <button onClick={handleSignOut} className="px-3 py-1 rounded bg-red-600 text-white">Sign Out</button>
-        </div>
-      </header>
-
-      {/* Main */}
-      <main className="flex-1 overflow-hidden">
-        <div className="h-full flex">
-          {/* Left: Terminal / Market feed */}
-          <section className="flex-1 p-4 flex flex-col gap-4">
-            <div className={`flex items-center justify-between p-4 rounded-md ${dark ? "bg-neutral-800" : "bg-white shadow-sm"}`}>
-              <div className="flex items-center">
-                <div>
-                  <div className="text-xs text-gray-400">Symbol</div>
-                  <input
-                    value={symbol}
-                    onChange={(e) => setSymbol(e.target.value.toUpperCase())}
-                    className="text-2xl font-mono bg-transparent outline-none"
-                  />
-                </div>
-                <FiStar
-                  className={`cursor-pointer transition-colors ml-2 ${
-                    watchlist.includes(symbol) ? 'text-yellow-500' : 'text-gray-500'
-                  }`}
-                  onClick={() => handleToggleWatchlist(symbol)}
-                />
-              </div>
-
-              <div className="text-right">
-                <div className="text-xs text-gray-400">Last</div>
-                <div className={`text-3xl font-mono ${price >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPrice(price)}</div>
-                <div className="text-xs text-gray-400 mt-1">{new Date().toLocaleTimeString()}</div>
-              </div>
-            </div>
-
-            <div className={`flex-1 p-4 rounded-md overflow-auto ${dark ? "bg-neutral-900/40" : "bg-white"}`}>
-              <div className="font-mono text-sm leading-6">
-                {/* Terminal-like live feed */}
-                <div className="text-sm text-gray-400 mb-2">Market Feed</div>
-                <div className="space-y-1">
-                  {/* generate small feed lines */}
-                  {Array.from({ length: 18 }).map((_, i) => {
-                    const delta = ((Math.random() - 0.5) * 1.2).toFixed(2);
-                    const priceSample = (price + Number(delta)).toFixed(2);
-                    return (
-                      <div key={i} className="flex justify-between">
-                        <div className="text-xs text-gray-400">[{new Date().toLocaleTimeString()}]</div>
-                        <div className="flex-1 px-3">
-                          <span className="text-xs">{symbol}</span>
+    return (
+        <div className="min-h-screen bg-gray-50">
+            <nav className="bg-white border-b border-gray-200">
+                <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                    <div className="flex justify-between h-16 items-center">
+                        <div className="flex items-center">
+                            <Link 
+                                href="/dashboard" 
+                                className="text-xl font-bold text-gray-800"
+                            >
+                                Market<span className="text-blue-600">IQ</span>
+                            </Link>
                         </div>
-                        <div className={`w-24 text-right ${delta >= 0 ? "text-green-400" : "text-red-400"}`}>{priceSample}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            </div>
-
-            {/* Order entry area */}
-            <div className={`p-4 rounded-md ${dark ? "bg-neutral-800" : "bg-white shadow-sm"}`}>
-              <div className="flex flex-col sm:flex-row sm:items-end gap-3">
-                <div className="flex-1">
-                  <label className="text-xs text-gray-400">Side</label>
-                  <div className="flex gap-2 mt-1">
-                    <button onClick={() => setSide("Buy")} className={`flex-1 py-2 rounded ${side === "Buy" ? "bg-green-500 text-white" : "bg-gray-100 text-black"}`}>
-                      Buy
-                    </button>
-                    <button onClick={() => setSide("Sell")} className={`flex-1 py-2 rounded ${side === "Sell" ? "bg-red-500 text-white" : "bg-gray-100 text-black"}`}>
-                      Sell
-                    </button>
-                  </div>
-                </div>
-
-                <div className="w-32">
-                  <label className="text-xs text-gray-400">Lots</label>
-                  <input type="number" min="0.01" step="0.01" value={lots} onChange={(e) => setLots(Number(e.target.value))}
-                    className="w-full border px-2 py-1 rounded bg-transparent" />
-                </div>
-
-                <div className="w-36">
-                  <div className="text-xs text-gray-400">Exec Price</div>
-                  <div className="font-mono text-lg">{formatPrice(price)}</div>
-                </div>
-
-                <div className="flex gap-2">
-                  <button onClick={placeOrder} className="px-4 py-2 rounded bg-blue-600 text-white">Market {side}</button>
-                  <button onClick={closeAll} className="px-4 py-2 rounded bg-orange-500 text-white">Close All</button>
-                  <button onClick={resetDemo} className="px-4 py-2 rounded bg-gray-200">Reset</button>
-                </div>
-              </div>
-            </div>
-          </section>
-
-          {/* Right: positions & journal */}
-          <aside className={`w-96 flex flex-col gap-4 p-4 border-l ${dark ? "border-neutral-800" : "border-gray-200"} bg-opacity-30`}>
-            <div className={`p-3 rounded ${dark ? "bg-neutral-800" : "bg-white shadow-sm"}`}>
-              <div className="flex items-center justify-between">
-                <div>
-                  <div className="text-xs text-gray-400">Unrealized</div>
-                  <div className={`text-lg font-semibold ${totalUnrealized >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPrice(totalUnrealized)}</div>
-                </div>
-                <div>
-                  <div className="text-xs text-gray-400">Realized</div>
-                  <div className={`text-lg font-semibold ${totalRealized >= 0 ? "text-green-400" : "text-red-400"}`}>{formatPrice(totalRealized)}</div>
-                </div>
-              </div>
-            </div>
-
-            <div className={`flex-1 overflow-auto p-2 rounded ${dark ? "bg-neutral-900/40" : "bg-white"}`}>
-              <h4 className="text-sm font-medium mb-2">Open Positions</h4>
-              <div className="space-y-2">
-                {openPositions.length === 0 && <div className="text-xs text-gray-400">No open positions</div>}
-                {openPositions.map((p) => {
-                  const unreal = ((price - p.entryPrice) * p.lots * (p.side === "Buy" ? 1 : -1)).toFixed(2);
-                  return (
-                    <div key={p.id} className="p-2 rounded border flex justify-between items-start">
-                      <div>
-                        <div className="font-medium">{p.symbol} • {p.side}</div>
-                        <div className="text-xs text-gray-400">Entry {formatPrice(p.entryPrice)} • {p.lots} lots</div>
-                      </div>
-                      <div className="text-right">
-                        <div className={`${unreal >= 0 ? "text-green-400" : "text-red-400"} font-mono`}>{Number(unreal).toFixed(2)}</div>
-                        <button onClick={() => closePosition(p.id)} className="mt-2 text-xs px-2 py-1 rounded bg-gray-100">Close</button>
-                      </div>
+                        <div className="flex items-center space-x-4">
+                            <Link
+                                href="/dashboard"
+                                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            >
+                                Dashboard
+                            </Link>
+                            <Link
+                                href="/profile"
+                                className="px-4 py-2 rounded-md text-gray-600 hover:bg-gray-100 transition-colors"
+                            >
+                                Profile
+                            </Link>
+                            <button
+                                onClick={() => signOut({ callbackUrl: '/login' })}
+                                className="px-4 py-2 rounded-md text-white bg-red-600 hover:bg-red-700 transition-colors"
+                            >
+                                Sign Out
+                            </button>
+                        </div>
                     </div>
-                  );
-                })}
-              </div>
-            </div>
+                </div>
+            </nav>
 
-            <div className={`h-60 overflow-auto p-2 rounded ${dark ? "bg-neutral-900/30" : "bg-white"}`}>
-              <h4 className="text-sm font-medium mb-2">Journal (Closed)</h4>
-              <div className="space-y-2">
-                {journal.length === 0 && <div className="text-xs text-gray-400">No closed trades</div>}
-                {journal.map((j) => (
-                  <div key={j.id || j.closedAt} className="p-2 border rounded">
-                    <div className="flex justify-between">
-                      <div className="font-medium">{j.symbol} • {j.side}</div>
-                      <div className={`${j.pnl >= 0 ? "text-green-400" : "text-red-400"} font-mono`}>{formatPrice(j.pnl)}</div>
+            <main className="container mx-auto p-8 max-w-7xl text-gray-800">
+                <header className="mb-8">
+                    <h1 className="text-3xl font-bold text-gray-900">Trade Terminal</h1>
+                    <p className="text-sm text-gray-500 mt-1">
+                        {isAuthReady ? `Connected as ${userId}` : 'Connecting to services...'}
+                    </p>
+                </header>
+
+                {message.show && (
+                    <div className={`p-4 rounded-lg text-sm mb-6 ${message.isError ? 'bg-red-100 text-red-800' : 'bg-green-100 text-green-800'}`}>
+                        {message.text}
                     </div>
-                    <div className="text-xs text-gray-400">Entry {formatPrice(j.entryPrice)} → Exit {formatPrice(j.exitPrice)}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
+                )}
 
-          </aside>
+                <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div className="lg:col-span-1 space-y-6">
+                        <SearchBar
+                            searchQuery={searchQuery}
+                            setSearchQuery={setSearchQuery}
+                            searchLoading={searchLoading}
+                            searchResults={searchResults}
+                            setCurrentSymbol={setCurrentSymbol}
+                            setSearchResults={setSearchResults}
+                            handleToggleWatchlist={handleToggleWatchlist}
+                            DEMO_MODE={DEMO_MODE}
+                        />
+                        <TradeForm
+                            lots={lots}
+                            setLots={setLots}
+                            takeProfit={takeProfit}
+                            setTakeProfit={setTakeProfit}
+                            stopLoss={stopLoss}
+                            setStopLoss={setStopLoss}
+                            placeTrade={placeTrade}
+                            currentSymbol={currentSymbol}
+                        />
+                        <Watchlist
+                            watchlist={watchlist}
+                            setCurrentSymbol={setCurrentSymbol}
+                            handleToggleWatchlist={handleToggleWatchlist}
+                        />
+                        {DEMO_MODE && demoPortfolio && (
+                            <Portfolio demoPortfolio={demoPortfolio} setCurrentSymbol={setCurrentSymbol} />
+                        )}
+                    </div>
+
+                    <div className="lg:col-span-2 space-y-6">
+                        <PositionsTable
+                            openPositions={openPositions}
+                            watchlist={watchlist}
+                            handleToggleWatchlist={handleToggleWatchlist}
+                        />
+                        <Journal
+                            addJournalEntry={addJournalEntry}
+                            journalEntries={journalEntries}
+                        />
+                    </div>
+                </div>
+            </main>
         </div>
-      </main>
-    </div>
-  );
+    );
 }
