@@ -39,7 +39,7 @@ export default function Watchlist({ searchQuery, selectedStock, setSelectedStock
     };
 
     fetchWatchlistDetails();
-    const interval = setInterval(fetchWatchlistDetails, 15000);
+    const interval = setInterval(fetchWatchlistDetails, 30000); // Optimized to 30s
     return () => clearInterval(interval);
   }, [watchlist]);
 

@@ -9,7 +9,8 @@ if (!admin.apps.length) {
         typeof serviceAccount === 'string' 
           ? JSON.parse(serviceAccount)
           : serviceAccount
-      )
+      ),
+      projectId: process.env.FIREBASE_PROJECT_ID,
     });
   } catch (error) {
     console.error('Firebase admin initialization error:', error.stack);

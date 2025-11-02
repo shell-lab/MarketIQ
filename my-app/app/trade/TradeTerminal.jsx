@@ -1,37 +1,36 @@
+
 "use client";
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-
-// Firebase Client SDK (for frontend auth & journal)
-import { initializeApp } from 'firebase/app';
-import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from 'firebase/auth';
-import { getFirestore, doc, collection, onSnapshot, query, addDoc } from 'firebase/firestore';
+import { signOut } from 'next-auth/react';
+import { auth, db } from '@/lib/firebase';
+import { onAuthStateChanged, signInAnonymously, signInWithCustomToken } from 'firebase/auth';
+import { collection, query, onSnapshot, addDoc } from 'firebase/firestore';
 
 import TradeForm from './components/TradeForm';
 import PositionsTable from './components/PositionsTable';
 import Journal from './components/Journal';
-import Watchlist from './components/Watchlist';
+import Watchlist from '@/components/Watchlist';
 import SearchBar from './components/SearchBar';
 import Portfolio from './components/Portfolio';
 
-// --- Firebase Config ---
-const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
-
-let db, auth;
-
 export default function TradeTerminal() {
+    const DEMO_MODE = true;
+    
+    // Authentication states
     const [userId, setUserId] = useState(null);
     const [idToken, setIdToken] = useState(null);
     const [isAuthReady, setIsAuthReady] = useState(false);
-    const [openPositions, setOpenPositions] = useState([]);
-    const [journalEntries, setJournalEntries] = useState([]);
+    
+    // Trading states
     const [currentSymbol, setCurrentSymbol] = useState("XAU/USD");
     const [watchlist, setWatchlist] = useState([]);
     const [searchQuery, setSearchQuery] = useState('');
     const [searchResults, setSearchResults] = useState([]);
     const [searchLoading, setSearchLoading] = useState(false);
+    const [openPositions, setOpenPositions] = useState([]);
+    const [journalEntries, setJournalEntries] = useState([]);
     
     const [lots, setLots] = useState(0.01);
     const [takeProfit, setTakeProfit] = useState('');
@@ -42,28 +41,22 @@ export default function TradeTerminal() {
     const [demoPortfolio, setDemoPortfolio] = useState(null);
     const [demoHistory, setDemoHistory] = useState([]);
 
-    const DEMO_MODE = true;
-
     const fetchWatchlist = async () => {
         try {
-          const response = await fetch('/api/watchlist');
-          if (response.ok) {
-            const data = await response.json();
-            setWatchlist(data.map((item) => item.symbol));
-          } else {
-            console.error("Failed to fetch watchlist");
-          }
+            const response = await fetch('/api/watchlist');
+            if (response.ok) {
+                const data = await response.json();
+                setWatchlist(data.map((item) => item.symbol));
+            } else {
+                console.error("Failed to fetch watchlist");
+            }
         } catch (error) {
-          console.error("Error fetching watchlist:", error);
+            console.error("Error fetching watchlist:", error);
         }
-      };
+    };
 
     useEffect(() => {
         try {
-            const app = initializeApp(firebaseConfig);
-            db = getFirestore(app);
-            auth = getAuth(app);
-
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     setUserId(user.uid);
@@ -294,7 +287,7 @@ export default function TradeTerminal() {
 
     const setupJournalListener = (uid) => {
         if (!uid) return;
-        const journalCollectionPath = `artifacts/${appId}/users/${uid}/trade_journal`;
+        const journalCollectionPath = `artifacts/${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}/users/${uid}/trade_journal`;
         const q = query(collection(db, journalCollectionPath));
         
         onSnapshot(q, (snapshot) => {
@@ -314,7 +307,7 @@ export default function TradeTerminal() {
         const note = e.target.elements.journalInput.value;
         if (!note || !userId) return;
         
-        const journalCollectionPath = `artifacts/${appId}/users/${userId}/trade_journal`;
+        const journalCollectionPath = `artifacts/${process.env.NEXT_PUBLIC_FIREBASE_APP_ID}/users/${userId}/trade_journal`;
         
         try {
             await addDoc(collection(db, journalCollectionPath), {
@@ -376,7 +369,7 @@ export default function TradeTerminal() {
                 <header className="mb-8">
                     <h1 className="text-3xl font-bold text-gray-900">Trade Terminal</h1>
                     <p className="text-sm text-gray-500 mt-1">
-                        {isAuthReady ? `Connected as ${userId}` : 'Connecting to services...'}
+                        {DEMO_MODE ? 'Demo Mode Active' : (isAuthReady ? `Connected as ${userId}` : 'Connecting to services...')}
                     </p>
                 </header>
 
@@ -409,9 +402,12 @@ export default function TradeTerminal() {
                             currentSymbol={currentSymbol}
                         />
                         <Watchlist
+                            searchQuery={searchQuery}
+                            selectedStock={currentSymbol}
+                            setSelectedStock={setCurrentSymbol}
                             watchlist={watchlist}
-                            setCurrentSymbol={setCurrentSymbol}
-                            handleToggleWatchlist={handleToggleWatchlist}
+                            loading={isLoading}
+                            toggleWatchlist={handleToggleWatchlist}
                         />
                         {DEMO_MODE && demoPortfolio && (
                             <Portfolio demoPortfolio={demoPortfolio} setCurrentSymbol={setCurrentSymbol} />

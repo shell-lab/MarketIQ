@@ -207,6 +207,20 @@ export default function DashboardPage() {
           </div>
         </div>
       </main>
+      <footer className="bg-gray-800 text-white py-8 mt-12">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
+          <p className="text-lg font-semibold">MarketIQ</p>
+          <p className="text-sm text-gray-400 mt-2">
+            This is a stock market prediction application. It is not a financial advisor. Use at your own risk.
+          </p>
+          <p className="text-sm text-gray-400 mt-1">
+            The stock market is about probability, not about the surity of the stock rise.
+          </p>
+          <p className="text-xs text-gray-500 mt-6">
+            &copy; 2025 MarketIQ. All rights reserved.
+          </p>
+        </div>
+      </footer>
     </div>
   );
 }
@@ -335,7 +349,7 @@ function MarketOverview({ watchlist, toggleWatchlist }) {
     };
 
     fetchMarketData();
-    const interval = setInterval(fetchMarketData, 15000);
+    const interval = setInterval(fetchMarketData, 30000); // Changed to 30s to reduce API calls
     return () => clearInterval(interval);
   }, []);
 

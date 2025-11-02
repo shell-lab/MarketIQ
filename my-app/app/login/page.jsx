@@ -42,9 +42,9 @@ export default function LoginPage() {
 
       {/* Footer Link */}
       <footer className="absolute bottom-8 w-full text-center">
-        <a href="#" className="text-sm text-gray-500 hover:underline">
-          Manage cookies or opt out
-        </a>
+        <p className="text-xs text-gray-500">
+          &copy; 2025 MarketIQ. All rights reserved.
+        </p>
       </footer>
     </div>
   );
